@@ -1,6 +1,6 @@
 import pathlib
 
-from treeflow_pipeline.util import text_output, yaml_input, yaml_output, pickle_output
+from treeflow_pipeline.util import text_input, text_output, yaml_input, yaml_output, pickle_output
 import treeflow_pipeline.simulation as pipe_sim
 import treeflow_pipeline.templating as tem
 import treeflow_pipeline.model as mod
@@ -13,9 +13,12 @@ configfile: "config.yaml"
 wd = pathlib.Path(config["working_directory"])
 taxon_dir = "{taxon_count}taxa"
 
+def get_model(model_file):
+    return mod.Model(yaml_input(model_file))
+
 rule benchmarks:
     input:
-        expand(str(wd / taxon_dir / "tree-sim.newick"), taxon_count=config["taxon_counts"])
+        expand(str(wd / taxon_dir / "sequences.fasta"), taxon_count=config["taxon_counts"])
 
 rule model_params:
     input:
@@ -23,7 +26,7 @@ rule model_params:
     output:
         params = wd / "params.yaml"
     run:
-        yaml_output(mod.Model(yaml_input(input.model)).free_params(), output.params)
+        yaml_output(get_model(input.model).free_params(), output.params)
 
 
 rule sampling_times:
@@ -65,10 +68,10 @@ rule topology_sim_newick:
     input:
         rules.topology_sim.output.trees
     output:
-        pathlib.Path(rules.topology_sim.output.trees).with_suffix(".newick")
+        newick = pathlib.Path(rules.topology_sim.output.trees).with_suffix(".newick")
     group: "sim"
     run:
-        top.convert_tree(input[0], 'nexus', output[0], 'newick')
+        top.convert_tree(input[0], 'nexus', output.newick, 'newick')
 
 rule height_sim:
     input:
@@ -81,3 +84,46 @@ rule height_sim:
             bench_sim.simulate_heights(config, input.topology_file, config["seed"], output.newick),
             output.pickle
         )
+
+rule sequence_sim_xml:
+    input:
+        tree_file = rules.height_sim.output.newick,
+        model = config["model_file"],
+        topology = rules.topology_sim_newick.output.newick,
+        params = rules.model_params.output.params,
+        sampling_times = rules.sampling_times.output.times,
+    params:
+        model = lambda wildcards, input: get_model(input.model)
+    output:
+        xml = wd / taxon_dir / "sequence-sim.xml"
+    run:
+        text_output(
+            tem.build_sequence_sim(
+                dict(config, **params.model.subst_params),
+                params.model,
+                text_input(input.topology),
+                yaml_input(input.params),
+                None,
+                yaml_input(input.sampling_times),
+                config["sequence_length"],
+                output.xml
+            ),
+            output.xml
+        )
+
+rule sequence_sim:
+    input:
+        xml = rules.sequence_sim_xml.output.xml
+    output:
+        sequence = pathlib.Path(rules.sequence_sim_xml.output.xml).parents[0] / "sequences.xml"
+    shell:
+        "beast -seed {config[seed]} {input}"
+
+rule fasta_sim:
+    input:
+        "{wd}/sequences.xml"
+    output:
+        "{wd}/sequences.fasta"
+    group: "sim"
+    run:
+        pipe_sim.convert_simulated_sequences(input[0], output[0], 'fasta')

@@ -5,3 +5,4 @@ working_directory: "out"
 sampling_window: 2.0
 sample_count: 1000
 height_scale: 0.1
+sequence_length: 1000
