@@ -85,6 +85,7 @@ rule height_sim:
             output.pickle
         )
 
+
 rule sequence_sim_xml:
     input:
         tree_file = rules.height_sim.output.newick,
@@ -115,15 +116,20 @@ rule sequence_sim:
     input:
         xml = rules.sequence_sim_xml.output.xml
     output:
-        sequence = pathlib.Path(rules.sequence_sim_xml.output.xml).parents[0] / "sequences.xml"
+        sequences = pathlib.Path(rules.sequence_sim_xml.output.xml).parents[0] / "sequences.xml"
     shell:
         "beast -seed {config[seed]} {input}"
 
 rule fasta_sim:
     input:
-        "{wd}/sequences.xml"
+        xml = rules.sequence_sim.output.sequences
     output:
-        "{wd}/sequences.fasta"
-    group: "sim"
+        fasta = wd / taxon_dir / "sequences.fasta"
     run:
-        pipe_sim.convert_simulated_sequences(input[0], output[0], 'fasta')
+        pipe_sim.convert_simulated_sequences(input.xml, output.fasta, 'fasta')
+
+
+rule tf_likelihood_times:
+    input:
+        heights = rules.height_sim.output.pickle,
+        sequences = rules.fasta_sim.output
