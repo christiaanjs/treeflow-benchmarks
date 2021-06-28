@@ -9,6 +9,7 @@ import treeflow_pipeline.topology_inference as top
 import treeflow_benchmarks.benchmarking as bench
 import treeflow_benchmarks.tf_likelihood as bench_tf
 import treeflow_benchmarks.libsbn as bench_libsbn
+import treeflow_benchmarks.tree_transform as bench_trans
 import pandas as pd
 
 
@@ -18,6 +19,7 @@ wd = pathlib.Path(config["working_directory"])
 taxon_dir = "{taxon_count}taxa"
 seed_dir = "{seed}seed"
 likelihood_dir = "{likelihood}"
+ratio_dir = "ratio_{ratio}"
 
 seeds = [str(i+1) for i in range(config["replicates"])]
 
@@ -26,7 +28,9 @@ def get_model(model_file):
 
 rule benchmarks:
     input:
-        wd / "likelihood-times.csv"
+        wd / "likelihood-times.csv",
+        wd / "transform-times.csv",
+
 
 rule model_params:
     input:
@@ -152,7 +156,7 @@ rule likelihood_times:
         sequences = rules.fasta_sim.output.fasta,
         model = config["model_file"],
     output:
-        times = wd / taxon_dir / seed_dir / likelihood_dir / "times.pickle"
+        times = wd / taxon_dir / seed_dir / likelihood_dir / "likelihood-times.pickle"
     params:
         model = lambda wildcards, input: get_model(input.model)
     run:
@@ -167,7 +171,7 @@ rule likelihood_times:
                 ),
                 taxon_count=wildcards.taxon_count,
                 seed=wildcards.seed,
-                likelihood=wildcards.likelihood
+                method=wildcards.likelihood
             ), 
             output.times
         )
@@ -181,5 +185,52 @@ rule likelihood_times_csv:
         )
     output:
         csv = wd / "likelihood-times.csv"
+    run:
+        pd.DataFrame([pickle_input(x) for x in input.times]).to_csv(output.csv)
+
+rule ratios:
+    input:
+        topology = rules.topology_sim_newick.output.newick,
+        heights = rules.height_sim.output.pickle,
+    output:
+        ratios = sibling_file(rules.height_sim.output.pickle, "ratios.pickle")
+    run:
+        pickle_output(bench_trans.get_ratios(input.topology, pickle_input(input.heights)), output.ratios)
+
+ratio_transform_benchmarkables = dict(
+    tensorflow=bench_trans.TensorflowRatioTransformBenchmarkable()
+)
+
+rule transform_times:
+    input:
+        topology = rules.topology_sim_newick.output.newick,
+        ratios = rules.ratios.output.ratios,
+    output:
+        times = wd / taxon_dir / seed_dir / ratio_dir / "ratio-times.pickle"
+    run:
+        pickle_output(
+            bench.annotate_times(
+                bench.benchmark_ratio_transform(
+                    input.topology,
+                    pickle_input(input.ratios),
+                    ratio_transform_benchmarkables[wildcards.ratio]
+                ),
+                taxon_count=wildcards.taxon_count,
+                seed=wildcards.seed,
+                method=wildcards.ratio
+            ), 
+            output.times
+        )
+
+
+rule transform_times_csv:
+    input:
+        times = expand(rules.transform_times.output.times,
+            taxon_count=config["taxon_counts"],
+            seed=seeds,
+            ratio=ratio_transform_benchmarkables.keys()
+        )
+    output:
+        csv = wd / "transform-times.csv"
     run:
         pd.DataFrame([pickle_input(x) for x in input.times]).to_csv(output.csv)
