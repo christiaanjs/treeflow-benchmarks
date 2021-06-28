@@ -1,6 +1,6 @@
 model_file: model.yaml
-taxon_counts: [10, 20, 30]
-seed: 2
+taxon_counts: [10, 20]
+replicates: 2
 working_directory: "out"
 sampling_window: 2.0
 sample_count: 1000
