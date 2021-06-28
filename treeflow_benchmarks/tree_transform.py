@@ -5,7 +5,7 @@ import tensorflow as tf
 import treeflow_benchmarks.benchmarking
 
 
-def get_bij(topology_file):
+def get_bij(topology_file, _class=treeflow.tree_transform.BranchBreaking, **kwargs):
     tree, taxon_names = treeflow.tree_processing.parse_newick(topology_file)
     topology = treeflow.tree_processing.update_topology_dict(tree["topology"])
     taxon_count = (tree["heights"].shape[0] + 1) // 2
@@ -15,10 +15,11 @@ def get_bij(topology_file):
     anchor_heights = tf.convert_to_tensor(
         anchor_heights, dtype=treeflow.DEFAULT_FLOAT_DTYPE_TF
     )
-    bij = treeflow.tree_transform.BranchBreaking(
-        topology["parent_indices"][taxon_count:] - taxon_count,
-        topology["preorder_node_indices"][1:] - taxon_count,
+    bij = _class(
+        parent_indices=topology["parent_indices"][taxon_count:] - taxon_count,
+        preorder_node_indices=topology["preorder_node_indices"][1:] - taxon_count,
         anchor_heights=anchor_heights,
+        **kwargs
     )
     return bij, taxon_count
 

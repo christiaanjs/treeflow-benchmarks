@@ -198,7 +198,8 @@ rule ratios:
         pickle_output(bench_trans.get_ratios(input.topology, pickle_input(input.heights)), output.ratios)
 
 ratio_transform_benchmarkables = dict(
-    tensorflow=bench_trans.TensorflowRatioTransformBenchmarkable()
+    tensorflow=bench_trans.TensorflowRatioTransformBenchmarkable(),
+    libsbn=bench_libsbn.LibsbnRatioTransformBenchmarkable()
 )
 
 rule transform_times:

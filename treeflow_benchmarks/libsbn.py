@@ -1,9 +1,15 @@
 import tensorflow as tf
 import numpy as np
 
-from tensorflow.python.framework.tensor_conversion_registry import get
-from treeflow_benchmarks.benchmarking import LikelihoodBenchmarkable
+from treeflow_benchmarks.benchmarking import (
+    LikelihoodBenchmarkable,
+    RatioTransformBenchmarkable,
+)
+from treeflow_benchmarks.tree_transform import get_bij
 from treeflow_pipeline.model import get_likelihood
+import treeflow.tree_processing
+import treeflow.tree_transform
+import treeflow.libsbn
 
 
 class BeagleLikelihoodBenchmarkable(LikelihoodBenchmarkable):
@@ -35,3 +41,31 @@ class BeagleLikelihoodBenchmarkable(LikelihoodBenchmarkable):
 
     def calculate_branch_gradients(self, branch_lengths):
         return self.grad(branch_lengths)
+
+
+class LibsbnRatioTransformBenchmarkable(RatioTransformBenchmarkable):
+    def initialize(self, topology_file):
+        inst = treeflow.libsbn.get_instance(topology_file)
+        self.bij, self.taxon_count = get_bij(
+            topology_file, treeflow.tree_transform.Ratio, inst=inst
+        )
+        self.forward = tf.function(self.bij.forward)
+
+        def grad(ratios, height_gradients):
+            with tf.GradientTape() as t:
+                t.watch(ratios)
+                heights = self.bij.forward(ratios)
+                return t.gradient(heights, ratios, output_gradients=height_gradients)
+
+        self.grad = tf.function(grad)
+
+        tree, _ = treeflow.tree_processing.parse_newick(topology_file)
+        ratios = self.bij.inverse(tree["heights"][self.taxon_count :])
+        self.forward(ratios)  # Do tracing
+        self.grad(ratios, tf.ones_like(ratios))
+
+    def calculate_heights(self, ratios):
+        return self.forward(ratios)
+
+    def calculate_ratio_gradients(self, ratios, height_gradients):
+        return self.grad(ratios, height_gradients)
