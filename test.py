@@ -16,7 +16,7 @@ import treeflow_pipeline.topology_inference as top
 import treeflow_benchmarks.benchmarking as bench
 import treeflow_benchmarks.tf_likelihood as bench_tf
 import pandas as pd
-
+import treeflow_benchmarks.libsbn
 
 likelihood_benchmarkables = dict(
     tensorflow=bench_tf.TensorflowLikelihoodBenchmarkable(custom_gradient=False),
@@ -29,6 +29,6 @@ res = bench.benchmark_likelihood(
     "out/20taxa/1seed/sequences.fasta",
     mod.Model(yaml_input("model.yaml")),
     pickle_input("out/20taxa/1seed/tree-sim.pickle"),
-    likelihood_benchmarkables["tensorflow_custom_gradient"],
+    treeflow_benchmarks.libsbn.BeagleLikelihoodBenchmarkable(),
 )
 print(res)

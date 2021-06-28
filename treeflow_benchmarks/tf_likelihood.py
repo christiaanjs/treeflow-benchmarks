@@ -65,14 +65,14 @@ class TensorflowLikelihoodBenchmarkable(bench.LikelihoodBenchmarkable):
         def grad(branch_lengths):
             with tf.GradientTape() as t:
                 t.watch(branch_lengths)
-                val = log_prob(branch_lengths)
+                val = self.log_prob(branch_lengths)
                 return t.gradient(val, branch_lengths)
 
         self.grad = tf.function(grad)
 
         branch_lengths = treeflow.sequences.get_branch_lengths(self.tree)
-        self.grad(branch_lengths)
         self.log_prob(branch_lengths)  # Call to ensure compilation
+        self.grad(branch_lengths)
 
     def calculate_likelihoods(self, branch_lengths):
         return self.log_prob(branch_lengths)

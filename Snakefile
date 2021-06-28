@@ -8,6 +8,7 @@ import treeflow_benchmarks.simulation as bench_sim
 import treeflow_pipeline.topology_inference as top
 import treeflow_benchmarks.benchmarking as bench
 import treeflow_benchmarks.tf_likelihood as bench_tf
+import treeflow_benchmarks.libsbn as bench_libsbn
 import pandas as pd
 
 
@@ -140,7 +141,8 @@ rule fasta_sim:
 
 likelihood_benchmarkables = dict(
     tensorflow=bench_tf.TensorflowLikelihoodBenchmarkable(custom_gradient=False),
-    tensorflow_custom_gradient=bench_tf.TensorflowLikelihoodBenchmarkable(custom_gradient=True)
+    #tensorflow_custom_gradient=bench_tf.TensorflowLikelihoodBenchmarkable(custom_gradient=True).
+    beagle=bench_libsbn.BeagleLikelihoodBenchmarkable()
 )
 
 rule likelihood_times:
