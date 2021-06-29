@@ -10,6 +10,8 @@ from treeflow_pipeline.model import get_likelihood
 import treeflow.tree_processing
 import treeflow.tree_transform
 import treeflow.libsbn
+import treeflow
+import libsbn
 
 
 class BeagleLikelihoodBenchmarkable(LikelihoodBenchmarkable):
@@ -45,27 +47,37 @@ class BeagleLikelihoodBenchmarkable(LikelihoodBenchmarkable):
 
 class LibsbnRatioTransformBenchmarkable(RatioTransformBenchmarkable):
     def initialize(self, topology_file):
-        inst = treeflow.libsbn.get_instance(topology_file)
-        self.bij, self.taxon_count = get_bij(
-            topology_file, treeflow.tree_transform.Ratio, inst=inst
+        self.inst = treeflow.libsbn.get_instance(topology_file)
+        self.tree = self.inst.tree_collection.trees[0]
+        self.node_height_state = np.array(self.tree.node_heights, copy=False)
+
+        def libsbn_forward(ratios):
+            self.tree.initialize_time_tree_using_height_ratios(ratios)
+            return np.array(self.node_height_state[-ratios.shape[-1] :]).astype(
+                ratios.dtype
+            )
+
+        self.forward_1d = libsbn_forward
+
+        self.forward = np.vectorize(
+            libsbn_forward, [treeflow.DEFAULT_FLOAT_DTYPE_NP], signature="(n)->(n)"
         )
-        self.forward = tf.function(self.bij.forward)
 
-        def grad(ratios, height_gradients):
-            with tf.GradientTape() as t:
-                t.watch(ratios)
-                heights = self.bij.forward(ratios)
-                return t.gradient(heights, ratios, output_gradients=height_gradients)
+        def libsbn_gradient(heights, dheights):
+            self.node_height_state[-heights.shape[-1] :] = heights
+            return np.array(
+                libsbn.ratio_gradient_of_height_gradient(self.tree, dheights, False),
+                dtype=heights.dtype,
+            )
 
-        self.grad = tf.function(grad)
+        self.grad_1d = libsbn_gradient
 
-        tree, _ = treeflow.tree_processing.parse_newick(topology_file)
-        ratios = self.bij.inverse(tree["heights"][self.taxon_count :])
-        self.forward(ratios)  # Do tracing
-        self.grad(ratios, tf.ones_like(ratios))
+        self.grad = np.vectorize(
+            libsbn_gradient, [treeflow.DEFAULT_FLOAT_DTYPE_NP], signature="(n),(n)->(n)"
+        )
 
     def calculate_heights(self, ratios):
-        return self.forward(ratios)
+        return self.forward(ratios.numpy())
 
-    def calculate_ratio_gradients(self, ratios, height_gradients):
-        return self.grad(ratios, height_gradients)
+    def calculate_ratio_gradients(self, ratios, heights, height_gradients):
+        return self.grad(heights.numpy(), height_gradients.numpy())

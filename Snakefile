@@ -205,6 +205,7 @@ rule transform_times:
     input:
         topology = rules.topology_sim_newick.output.newick,
         ratios = rules.ratios.output.ratios,
+        trees = rules.height_sim.output.pickle,
     output:
         times = wd / taxon_dir / seed_dir / ratio_dir / "ratio-times.pickle"
     run:
@@ -213,6 +214,7 @@ rule transform_times:
                 bench.benchmark_ratio_transform(
                     input.topology,
                     pickle_input(input.ratios),
+                    pickle_input(input.trees),
                     ratio_transform_benchmarkables[wildcards.ratio]
                 ),
                 taxon_count=wildcards.taxon_count,

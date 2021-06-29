@@ -52,5 +52,5 @@ class TensorflowRatioTransformBenchmarkable(
     def calculate_heights(self, ratios):
         return self.forward(ratios)
 
-    def calculate_ratio_gradients(self, ratios, height_gradients):
+    def calculate_ratio_gradients(self, ratios, heights, height_gradients):
         return self.grad(ratios, height_gradients)

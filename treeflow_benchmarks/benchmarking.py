@@ -84,17 +84,21 @@ class RatioTransformBenchmarkable:
         pass
 
     @abstractmethod
-    def calculate_ratio_gradients(self, ratios, height_gradients):
+    def calculate_ratio_gradients(self, ratios, heights, height_gradients):
         pass
 
 
-def benchmark_ratio_transform(topology_file, ratios, benchmarkable):
+def benchmark_ratio_transform(topology_file, ratios, trees, benchmarkable):
     benchmarkable.initialize(topology_file)
+
+    taxon_count = ratios.shape[-1] + 1
+    heights = trees["heights"][..., taxon_count:]
 
     forward_time, forward_res = time_function(benchmarkable.calculate_heights, ratios)
     gradient_time, gradient_res = time_function(
         benchmarkable.calculate_ratio_gradients,
         ratios,
+        heights,
         tf.ones_like(ratios),  # TODO: Non-dummy gradient value
     )
     return RatioTransformTimes(forward_time, gradient_time)
