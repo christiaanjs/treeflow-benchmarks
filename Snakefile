@@ -12,8 +12,8 @@ import treeflow_benchmarks.libsbn as bench_libsbn
 import treeflow_benchmarks.tree_transform as bench_trans
 import pandas as pd
 
-
-configfile: "config.yaml"
+config_file = "config.yaml"
+configfile: config_file
 
 wd = pathlib.Path(config["working_directory"])
 taxon_dir = "{taxon_count}taxa"
@@ -28,8 +28,7 @@ def get_model(model_file):
 
 rule benchmarks:
     input:
-        wd / "likelihood-times.csv",
-        wd / "transform-times.csv",
+        wd / "plot-benchmarks.html"
 
 
 rule model_params:
@@ -186,7 +185,7 @@ rule likelihood_times_csv:
     output:
         csv = wd / "likelihood-times.csv"
     run:
-        pd.DataFrame([pickle_input(x) for x in input.times]).to_csv(output.csv)
+        pd.DataFrame([pickle_input(x) for x in input.times]).to_csv(output.csv, index=False)
 
 rule ratios:
     input:
@@ -234,4 +233,30 @@ rule transform_times_csv:
     output:
         csv = wd / "transform-times.csv"
     run:
-        pd.DataFrame([pickle_input(x) for x in input.times]).to_csv(output.csv)
+        pd.DataFrame([pickle_input(x) for x in input.times]).to_csv(output.csv, index=False)
+
+rule report_notebook:
+    input:
+        notebook = "notebook/plot-benchmarks.ipynb",
+        likelihood_times = rules.likelihood_times_csv.output.csv,
+        transform_times = rules.transform_times_csv.output.csv,
+        config = config_file,
+        model = config["model_file"],
+    output:
+        notebook = wd / "plot-benchmarks.ipynb"
+    shell:
+        """
+        papermill {input.notebook} {output.notebook} \
+            -p likelihood_times_file {input.likelihood_times} \
+            -p transform_times_file {input.transform_times} \
+            -p config_file {input.config} \
+            -p model_file {input.model}
+        """
+
+rule report:
+    input:
+        notebook = rules.report_notebook.output.notebook
+    output:
+        html = wd / "plot-benchmarks.html"
+    shell:
+        "jupyter nbconvert --to html {input.notebook}"
