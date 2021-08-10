@@ -2,4 +2,5 @@
 
 export("%>%")
 export(comparisonPlot)
+export(fitLogLogLine)
 importFrom(magrittr,"%>%")

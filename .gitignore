@@ -130,3 +130,4 @@ dmypy.json
 
 out/
 .snakemake/
+.Rproj.user

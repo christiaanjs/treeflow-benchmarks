@@ -28,7 +28,9 @@ def get_model(model_file):
 
 rule benchmarks:
     input:
-        wd / "plot-benchmarks.html"
+        wd / "plot-benchmarks.html",
+        wd / "log-scale-plot.png",
+        wd / "free-scale-plot.png"
 
 
 rule model_params:
@@ -245,14 +247,16 @@ rule report_notebook:
         config = config_file,
         model = config["model_file"],
     output:
-        notebook = wd / "plot-benchmarks.ipynb"
+        notebook = wd / "plot-benchmarks.ipynb",
+        plot_data = wd / "plot-data.csv"
     shell:
         """
         papermill {input.notebook} {output.notebook} \
             -p likelihood_times_file {input.likelihood_times} \
             -p transform_times_file {input.transform_times} \
             -p config_file {input.config} \
-            -p model_file {input.model}
+            -p model_file {input.model} \
+            -p plot_data_output {output.plot_data}
         """
 
 rule report:
@@ -262,3 +266,12 @@ rule report:
         html = wd / "plot-benchmarks.html"
     shell:
         "jupyter nbconvert --to html {input.notebook}"
+
+rule plots:
+    input:
+        plot_data = rules.report_notebook.output.plot_data
+    output:
+        log_scale_plot = wd / "log-scale-plot.png",
+        free_scale_plot = wd / "free-scale-plot.png"
+    script:
+        "treeflowbenchmarksr/exec/snakemake-plots.R"
