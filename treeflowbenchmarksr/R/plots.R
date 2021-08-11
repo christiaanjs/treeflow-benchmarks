@@ -1,3 +1,5 @@
+
+
 #' @export
 comparisonPlot <- function(plotData, logScales=TRUE, scales="fixed", outFile=NULL, ggsaveArgs=list()){
   df <- readr::read_csv(plotData)
@@ -11,9 +13,8 @@ comparisonPlot <- function(plotData, logScales=TRUE, scales="fixed", outFile=NUL
   } else {
     plot
   }
-  if(is.null(outFile)){
-    finalPlot
-  } else {
+  if(!is.null(outFile)){
     do.call(ggplot2::ggsave, modifyList(ggsaveArgs, list(filename=outFile, plot=finalPlot)))
   }
+  outFile
 }

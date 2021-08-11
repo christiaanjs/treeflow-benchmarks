@@ -1,0 +1,28 @@
+---
+title: "Treeflow benchmarks"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(treeflowbenchmarksr)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r log_scale_plot}
+comparisonPlot(
+    snakemake@input[["plot_data"]]
+)
+```
+
+```{r free_scale_plot}
+comparisonPlot(
+    snakemake@input[["plot_data"]],
+    logScales=FALSE,
+    scales="free_y"
+)
+```
+
+```{r fits}
+fitLogLogLine(snakemake@input[["plot_data"]]) %>% 
+  knitr::kable()
+```

@@ -30,7 +30,8 @@ rule benchmarks:
     input:
         wd / "plot-benchmarks.html",
         wd / "log-scale-plot.png",
-        wd / "free-scale-plot.png"
+        wd / "free-scale-plot.png",
+        wd / "rmd-report.html"
 
 
 rule model_params:
@@ -275,3 +276,11 @@ rule plots:
         free_scale_plot = wd / "free-scale-plot.png"
     script:
         "treeflowbenchmarksr/exec/snakemake-plots.R"
+
+rule rmd_report:
+    input:
+        plot_data = rules.report_notebook.output.plot_data
+    output:
+        rmd_report = wd / "rmd-report.html"
+    script:
+        "treeflowbenchmarksr/exec/report.Rmd"
