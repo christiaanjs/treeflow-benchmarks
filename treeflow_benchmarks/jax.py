@@ -38,7 +38,7 @@ class JaxLikelihoodBenchmarkable(bench.LikelihoodBenchmarkable):
         def log_prob(branch_lengths):
             return self.jax_likelihood.log_likelihood(branch_lengths)
 
-        grad = jax.grad(log_prob)
+        grad = np.vectorize(jax.grad(log_prob), signature="(n)->(n)")
 
         if self.jit:
             self.log_prob = jax.jit(log_prob)
