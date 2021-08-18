@@ -10,6 +10,7 @@ likelihood_benchmarkables = dict(
     tensorflow=TensorflowLikelihoodBenchmarkable(custom_gradient=False),
     beagle=BeagleLikelihoodBenchmarkable(),
     jax=JaxLikelihoodBenchmarkable(),
+    jax_jit=JaxLikelihoodBenchmarkable(jit=True),
 )
 
 ratio_transform_benchmarkables = dict(

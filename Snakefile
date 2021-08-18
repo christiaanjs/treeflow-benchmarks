@@ -146,7 +146,7 @@ rule fasta_sim:
     run:
         pipe_sim.convert_simulated_sequences(input.xml, output.fasta, 'fasta')
 
-target_benchmarkables = set(["tensorflow", "jax"])
+target_benchmarkables = set(["tensorflow", "jax", "jax_jit"])
 likelihood_benchmarkables = { 
     key: value for key, value in benchmarkables.likelihood_benchmarkables.items() if key in target_benchmarkables
 }

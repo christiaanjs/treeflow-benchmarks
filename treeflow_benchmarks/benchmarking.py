@@ -55,7 +55,7 @@ class LikelihoodBenchmarkable:
 def benchmark_likelihood(topology_file, fasta_file, model, trees, benchmarkable):
     benchmarkable.initialize(topology_file, fasta_file, model)
 
-    branch_lengths = treeflow.sequences.get_branch_lengths(trees)
+    branch_lengths = treeflow.sequences.get_branch_lengths(trees).numpy()
 
     likelihood_time, likelihood_res = time_function(
         benchmarkable.calculate_likelihoods, branch_lengths
