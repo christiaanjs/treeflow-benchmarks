@@ -10,6 +10,7 @@ import treeflow_benchmarks.benchmarking as bench
 import treeflow_benchmarks.tf_likelihood as bench_tf
 import treeflow_benchmarks.libsbn as bench_libsbn
 import treeflow_benchmarks.tree_transform as bench_trans
+import treeflow_benchmarks.benchmarkables as benchmarkables
 import pandas as pd
 
 config_file = "config.yaml"
@@ -28,10 +29,11 @@ def get_model(model_file):
 
 rule benchmarks:
     input:
-        wd / "plot-benchmarks.html",
-        wd / "log-scale-plot.png",
-        wd / "free-scale-plot.png",
-        wd / "rmd-report.html"
+        wd / "likelihood-times.csv",
+        # wd / "plot-benchmarks.html",
+        # wd / "log-scale-plot.png",
+        # wd / "free-scale-plot.png",
+        # wd / "rmd-report.html"
 
 
 rule model_params:
@@ -144,12 +146,10 @@ rule fasta_sim:
     run:
         pipe_sim.convert_simulated_sequences(input.xml, output.fasta, 'fasta')
 
-
-likelihood_benchmarkables = dict(
-    tensorflow=bench_tf.TensorflowLikelihoodBenchmarkable(custom_gradient=False),
-    #tensorflow_custom_gradient=bench_tf.TensorflowLikelihoodBenchmarkable(custom_gradient=True).
-    beagle=bench_libsbn.BeagleLikelihoodBenchmarkable()
-)
+target_benchmarkables = set(["tensorflow", "jax"])
+likelihood_benchmarkables = { 
+    key: value for key, value in benchmarkables.likelihood_benchmarkables.items() if key in target_benchmarkables
+}
 
 rule likelihood_times:
     input:
@@ -199,10 +199,7 @@ rule ratios:
     run:
         pickle_output(bench_trans.get_ratios(input.topology, pickle_input(input.heights)), output.ratios)
 
-ratio_transform_benchmarkables = dict(
-    tensorflow=bench_trans.TensorflowRatioTransformBenchmarkable(),
-    libsbn=bench_libsbn.LibsbnRatioTransformBenchmarkable()
-)
+ratio_transform_benchmarkables = benchmarkables.ratio_transform_benchmarkables
 
 rule transform_times:
     input:
