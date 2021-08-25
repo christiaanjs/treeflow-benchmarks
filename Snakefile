@@ -7,33 +7,28 @@ import treeflow_pipeline.model as mod
 import treeflow_benchmarks.simulation as bench_sim
 import treeflow_pipeline.topology_inference as top
 import treeflow_benchmarks.benchmarking as bench
-import treeflow_benchmarks.tf_likelihood as bench_tf
-import treeflow_benchmarks.libsbn as bench_libsbn
+from treeflow_benchmarks.benchmarkables import benchmarkables as benchables, benchmark_functions
 import treeflow_benchmarks.tree_transform as bench_trans
-import treeflow_benchmarks.benchmarkables as benchmarkables
 import pandas as pd
 
 config_file = "config.yaml"
 configfile: config_file
 
 wd = pathlib.Path(config["working_directory"])
-taxon_dir = "{taxon_count}taxa"
-seed_dir = "{seed}seed"
-likelihood_dir = "{likelihood}"
-ratio_dir = "ratio_{ratio}"
+taxon_dir = "{taxon_count}-taxa"
+seed_dir = "{seed}-seed"
+task_dir = "{task}-task"
+benchmarkable_wildcard = "{benchmarkable}"
 
 seeds = [str(i+1) for i in range(config["replicates"])]
+
 
 def get_model(model_file):
     return mod.Model(yaml_input(model_file))
 
 rule benchmarks:
     input:
-        wd / "likelihood-times.csv",
-        # wd / "plot-benchmarks.html",
-        # wd / "log-scale-plot.png",
-        # wd / "free-scale-plot.png",
-        # wd / "rmd-report.html"
+        wd / "times.csv"
 
 
 rule model_params:
@@ -146,50 +141,6 @@ rule fasta_sim:
     run:
         pipe_sim.convert_simulated_sequences(input.xml, output.fasta, 'fasta')
 
-target_benchmarkables = set(["tensorflow", "jax", "jax_jit"])
-likelihood_benchmarkables = { 
-    key: value for key, value in benchmarkables.likelihood_benchmarkables.items() if key in target_benchmarkables
-}
-
-rule likelihood_times:
-    input:
-        topology = rules.topology_sim_newick.output.newick,
-        heights = rules.height_sim.output.pickle,
-        sequences = rules.fasta_sim.output.fasta,
-        model = config["model_file"],
-    output:
-        times = wd / taxon_dir / seed_dir / likelihood_dir / "likelihood-times.pickle"
-    params:
-        model = lambda wildcards, input: get_model(input.model)
-    run:
-        pickle_output(
-            bench.annotate_times(
-                bench.benchmark_likelihood(
-                    input.topology,
-                    input.sequences,
-                    params.model,
-                    pickle_input(input.heights),
-                    likelihood_benchmarkables[wildcards.likelihood]
-                ),
-                taxon_count=wildcards.taxon_count,
-                seed=wildcards.seed,
-                method=wildcards.likelihood
-            ), 
-            output.times
-        )
-
-rule likelihood_times_csv:
-    input:
-        times = expand(rules.likelihood_times.output.times,
-            taxon_count=config["taxon_counts"],
-            seed=seeds,
-            likelihood=likelihood_benchmarkables.keys()
-        )
-    output:
-        csv = wd / "likelihood-times.csv"
-    run:
-        pd.DataFrame([pickle_input(x) for x in input.times]).to_csv(output.csv, index=False)
-
 rule ratios:
     input:
         topology = rules.topology_sim_newick.output.newick,
@@ -199,49 +150,89 @@ rule ratios:
     run:
         pickle_output(bench_trans.get_ratios(input.topology, pickle_input(input.heights)), output.ratios)
 
-ratio_transform_benchmarkables = benchmarkables.ratio_transform_benchmarkables
-
-rule transform_times:
+rule sim_state:
     input:
-        topology = rules.topology_sim_newick.output.newick,
-        ratios = rules.ratios.output.ratios,
+        topology_file = rules.topology_sim_newick.output.newick,
         trees = rules.height_sim.output.pickle,
+        fasta_file = rules.fasta_sim.output.fasta,
+        ratios = rules.ratios.output.ratios,
+        model = config["model_file"],
     output:
-        times = wd / taxon_dir / seed_dir / ratio_dir / "ratio-times.pickle"
+        sim_state = sibling_file(rules.height_sim.output.pickle, "sim-state.pickle")
+    run:
+        pickle_output(dict(
+            topology_file=input.topology_file,
+            trees=pickle_input(input.trees),
+            fasta_file=input.fasta_file,
+            ratios=pickle_input(input.trees),
+            model=get_model(input.model)
+        ), output.sim_state)
+
+rule times:
+    input:
+        sim_state = rules.sim_state.output.sim_state
+    output:
+        times = wd / taxon_dir / seed_dir / task_dir / (benchmarkable_wildcard + "-times.csv")
     run:
         pickle_output(
             bench.annotate_times(
-                bench.benchmark_ratio_transform(
-                    input.topology,
-                    pickle_input(input.ratios),
-                    pickle_input(input.trees),
-                    ratio_transform_benchmarkables[wildcards.ratio]
+                benchmark_functions[wildcards.task](
+                    benchmarkable=benchables[wildcards.task][wildcards.benchmarkable],
+                    **pickle_input(input.sim_state)
                 ),
                 taxon_count=wildcards.taxon_count,
                 seed=wildcards.seed,
-                method=wildcards.ratio
-            ), 
+                method=wildcards.benchmarkable
+            ),
             output.times
         )
 
-
-rule transform_times_csv:
+rule task_times_csv:
     input:
-        times = expand(rules.transform_times.output.times,
+        times = expand(
+            rules.times.output.times,
             taxon_count=config["taxon_counts"],
             seed=seeds,
-            ratio=ratio_transform_benchmarkables.keys()
+            benchmarkable=config["benchmarkables"],
+            allow_missing=True
         )
     output:
-        csv = wd / "transform-times.csv"
+        csv = wd /  (task_dir + "-times.csv")
     run:
         pd.DataFrame([pickle_input(x) for x in input.times]).to_csv(output.csv, index=False)
+
+
+rule times_csv:
+    input:
+        csvs = expand(
+            rules.task_times_csv.output.csv, task=config["tasks"]
+        )
+    output:
+        csv = wd / "times.csv"
+    run:
+        pd.merge([pd.read_csv(x) for x in input.csvs]).to_csv(output.csv, index=False)
+
+rule plots:
+    input:
+        plot_data = rules.times_csv.output.csv
+    output:
+        log_scale_plot = wd / "log-scale-plot.png",
+        free_scale_plot = wd / "free-scale-plot.png"
+    script:
+        "treeflowbenchmarksr/exec/snakemake-plots.R"
+
+rule rmd_report:
+    input:
+        plot_data = rules.times_csv.output.csv
+    output:
+        rmd_report = wd / "rmd-report.html"
+    script:
+        "treeflowbenchmarksr/exec/report.Rmd"
 
 rule report_notebook:
     input:
         notebook = "notebook/plot-benchmarks.ipynb",
-        likelihood_times = rules.likelihood_times_csv.output.csv,
-        transform_times = rules.transform_times_csv.output.csv,
+        times = rules.times_csv.output.csv, # TODO
         config = config_file,
         model = config["model_file"],
     output:
@@ -250,8 +241,7 @@ rule report_notebook:
     shell:
         """
         papermill {input.notebook} {output.notebook} \
-            -p likelihood_times_file {input.likelihood_times} \
-            -p transform_times_file {input.transform_times} \
+            -p times_file {input.times} \
             -p config_file {input.config} \
             -p model_file {input.model} \
             -p plot_data_output {output.plot_data}
@@ -264,20 +254,3 @@ rule report:
         html = wd / "plot-benchmarks.html"
     shell:
         "jupyter nbconvert --to html {input.notebook}"
-
-rule plots:
-    input:
-        plot_data = rules.report_notebook.output.plot_data
-    output:
-        log_scale_plot = wd / "log-scale-plot.png",
-        free_scale_plot = wd / "free-scale-plot.png"
-    script:
-        "treeflowbenchmarksr/exec/snakemake-plots.R"
-
-rule rmd_report:
-    input:
-        plot_data = rules.report_notebook.output.plot_data
-    output:
-        rmd_report = wd / "rmd-report.html"
-    script:
-        "treeflowbenchmarksr/exec/report.Rmd"

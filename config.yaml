@@ -1,8 +1,10 @@
 model_file: model.yaml
-taxon_counts: [8, 16, 32, 64, 128]
-replicates: 30
+taxon_counts: [8, 16]
+replicates: 3
 working_directory: "out"
 sampling_window: 2.0
 sample_count: 1000
 height_scale: 0.1
 sequence_length: 1000
+tasks: ["likelihood"]
+benchmarkables: ["tensorflow", "jax"]
