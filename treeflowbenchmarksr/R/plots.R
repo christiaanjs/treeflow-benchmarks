@@ -2,7 +2,7 @@
 
 #' @export
 comparisonPlot <- function(plotData, logScales=TRUE, scales="fixed", outFile=NULL, ggsaveArgs=list()){
-  df <- readr::read_csv(plotData)
+  df <- readr::read_csv(plotData, show_col_types = FALSE)
   plotDf <- df %>%
     dplyr::mutate(computation=as.factor(computation))
   plot <- ggplot2::ggplot(plotDf, ggplot2::aes(x=taxon_count, y=time, group=interaction(taxon_count, computation), colour=computation)) +
@@ -16,5 +16,5 @@ comparisonPlot <- function(plotData, logScales=TRUE, scales="fixed", outFile=NUL
   if(!is.null(outFile)){
     do.call(ggplot2::ggsave, modifyList(ggsaveArgs, list(filename=outFile, plot=finalPlot)))
   }
-  outFile
+  plot
 }

@@ -7,9 +7,10 @@ import treeflow_pipeline.model as mod
 import treeflow_benchmarks.simulation as bench_sim
 import treeflow_pipeline.topology_inference as top
 import treeflow_benchmarks.benchmarking as bench
-from treeflow_benchmarks.benchmarkables import benchmarkables as benchables, benchmark_functions
+from treeflow_benchmarks.benchmarkables import benchmarkables as benchables, benchmark_functions, output_types
 import treeflow_benchmarks.tree_transform as bench_trans
 import pandas as pd
+from functools import reduce
 
 config_file = "config.yaml"
 configfile: config_file
@@ -22,13 +23,16 @@ benchmarkable_wildcard = "{benchmarkable}"
 
 seeds = [str(i+1) for i in range(config["replicates"])]
 
+all_computations = [time_field for task in config["tasks"] for time_field in output_types[task]._fields]
+assert len(all_computations) == len(set(all_computations)), "Time field names must be unique"
 
 def get_model(model_file):
     return mod.Model(yaml_input(model_file))
 
 rule benchmarks:
     input:
-        wd / "times.csv"
+        wd / "rmd-report.html",
+        wd / "log-scale-plot.png"
 
 
 rule model_params:
@@ -164,7 +168,7 @@ rule sim_state:
             topology_file=input.topology_file,
             trees=pickle_input(input.trees),
             fasta_file=input.fasta_file,
-            ratios=pickle_input(input.trees),
+            ratios=pickle_input(input.ratios),
             model=get_model(input.model)
         ), output.sim_state)
 
@@ -210,11 +214,26 @@ rule times_csv:
     output:
         csv = wd / "times.csv"
     run:
-        pd.merge([pd.read_csv(x) for x in input.csvs]).to_csv(output.csv, index=False)
+        reduce(pd.merge, [pd.read_csv(x) for x in input.csvs]).to_csv(output.csv, index=False)
+
+rule plot_data:
+    input:
+        times_csv = rules.times_csv.output.csv
+    output:
+        csv = wd / "plot-data.csv"
+    run:
+        (pd.read_csv(input.times_csv)
+            .melt(
+                id_vars=["method", "seed", "taxon_count"],
+                var_name="computation",
+                value_name="time"
+            )
+        ).to_csv(output.csv, index=False)
+
 
 rule plots:
     input:
-        plot_data = rules.times_csv.output.csv
+        plot_data = rules.plot_data.output.csv
     output:
         log_scale_plot = wd / "log-scale-plot.png",
         free_scale_plot = wd / "free-scale-plot.png"
@@ -223,34 +242,9 @@ rule plots:
 
 rule rmd_report:
     input:
-        plot_data = rules.times_csv.output.csv
+        plot_data = rules.plot_data.output.csv
     output:
         rmd_report = wd / "rmd-report.html"
     script:
         "treeflowbenchmarksr/exec/report.Rmd"
 
-rule report_notebook:
-    input:
-        notebook = "notebook/plot-benchmarks.ipynb",
-        times = rules.times_csv.output.csv, # TODO
-        config = config_file,
-        model = config["model_file"],
-    output:
-        notebook = wd / "plot-benchmarks.ipynb",
-        plot_data = wd / "plot-data.csv"
-    shell:
-        """
-        papermill {input.notebook} {output.notebook} \
-            -p times_file {input.times} \
-            -p config_file {input.config} \
-            -p model_file {input.model} \
-            -p plot_data_output {output.plot_data}
-        """
-
-rule report:
-    input:
-        notebook = rules.report_notebook.output.notebook
-    output:
-        html = wd / "plot-benchmarks.html"
-    shell:
-        "jupyter nbconvert --to html {input.notebook}"

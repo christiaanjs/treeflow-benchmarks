@@ -66,7 +66,7 @@ class LibsbnRatioTransformBenchmarkable(RatioTransformBenchmarkable):
         def libsbn_gradient(heights, dheights):
             self.node_height_state[-heights.shape[-1] :] = heights
             return np.array(
-                libsbn.ratio_gradient_of_height_gradient(self.tree, dheights, False),
+                libsbn.ratio_gradient_of_height_gradient(self.tree, dheights),
                 dtype=heights.dtype,
             )
 

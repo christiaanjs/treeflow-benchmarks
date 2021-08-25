@@ -9,6 +9,9 @@ from treeflow_benchmarks.libsbn import (
 from treeflow_benchmarks.benchmarking import (
     benchmark_likelihood,
     benchmark_ratio_transform,
+    LikelihoodTimes,
+    RatioTransformTimes,
+    CoalescentTimes,
 )
 
 likelihood_benchmarkables = dict(
@@ -26,6 +29,12 @@ ratio_transform_benchmarkables = dict(
 benchmarkables = dict(
     likelihood=likelihood_benchmarkables,
     ratio_transform=ratio_transform_benchmarkables,
+)
+
+output_types = dict(
+    likelihood=LikelihoodTimes,
+    ratio_transform=RatioTransformTimes,
+    coalescent=CoalescentTimes,
 )
 
 

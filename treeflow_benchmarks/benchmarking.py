@@ -19,10 +19,12 @@ def get_class_with_metadata(_class):
     )
 
 
-LikelihoodTimes = namedtuple("LikelihoodTimes", ["likelihood_time", "gradient_time"])
+LikelihoodTimes = namedtuple(
+    "LikelihoodTimes", ["likelihood_time", "branch_gradient_time"]
+)
 LikelihoodTimesWithMetadata = get_class_with_metadata(LikelihoodTimes)
 RatioTransformTimes = namedtuple(
-    "RatioTransformTimes", ["forward_time", "gradient_time"]
+    "RatioTransformTimes", ["forward_time", "ratio_gradient_time"]
 )
 RatioTransformTimesWithMetadata = get_class_with_metadata(RatioTransformTimes)
 CoalescentTimes = namedtuple(
@@ -90,7 +92,6 @@ class RatioTransformBenchmarkable:
 
 def benchmark_ratio_transform(topology_file, ratios, trees, benchmarkable):
     benchmarkable.initialize(topology_file)
-
     taxon_count = ratios.shape[-1] + 1
     heights = trees["heights"][..., taxon_count:]
 

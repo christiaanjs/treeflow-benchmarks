@@ -1,6 +1,6 @@
 #' @export
 fitLogLogLine <- function(plotData){
-  df <- readr::read_csv(plotData)
+  df <- readr::read_csv(plotData, show_col_types = FALSE)
   fitParameters <- df %>%
     tidyr::nest(data=c(seed, taxon_count, time)) %>%
     dplyr::mutate(
