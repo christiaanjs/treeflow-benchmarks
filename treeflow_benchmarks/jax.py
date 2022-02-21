@@ -1,7 +1,7 @@
 from logging import log
 import treeflow_benchmarks.benchmarking as bench
-import treeflow.tree_processing
-import treeflow.sequences
+from treeflow.tree.io import parse_newick
+from treeflow.evolution.seqio import Alignment
 import phylojax.likelihood
 import phylojax.substitution
 import jax.numpy as np
@@ -17,9 +17,11 @@ class JaxLikelihoodBenchmarkable(bench.LikelihoodBenchmarkable):
         self.log_prob = None
 
     def initialize(self, topology_file, fasta_file, model):
-        tree, taxon_names = treeflow.tree_processing.parse_newick(topology_file)
-        topology_dict = treeflow.tree_processing.update_topology_dict(tree["topology"])
-        alignment = treeflow.sequences.get_encoded_sequences(fasta_file, taxon_names)
+        tree = parse_newick(topology_file)
+        compressed_alignment = Alignment(fasta_file).get_compressed_alignment()
+        encoded_sequences = compressed_alignment.get_encoded_sequence_array(
+            tree.taxon_set
+        )
         subst_model = subst_model_classes[model.subst_model](**model.subst_params)
         if model.site_model == "none":
             category_weights = np.array([1.0])
@@ -27,10 +29,13 @@ class JaxLikelihoodBenchmarkable(bench.LikelihoodBenchmarkable):
         else:
             raise ValueError(f"Unknown site model: {model.site_model}")
         self.jax_likelihood = phylojax.likelihood.JaxLikelihood(
-            topology_dict,
-            alignment["sequences"].numpy(),
+            dict(
+                child_indices=tree.topology.child_indices,
+                postorder_node_indices=tree.topology.postorder_node_indices,
+            ),
+            encoded_sequences,
             subst_model,
-            alignment["weights"],
+            compressed_alignment.get_weights_array(),
             category_weights,
             category_rates,
         )
@@ -47,7 +52,7 @@ class JaxLikelihoodBenchmarkable(bench.LikelihoodBenchmarkable):
             self.log_prob = log_prob
             self.grad = grad
 
-        branch_lengths = treeflow.sequences.get_branch_lengths(tree).numpy()
+        branch_lengths = tree.branch_lengths
         self.log_prob(branch_lengths)
         self.grad(branch_lengths)
 

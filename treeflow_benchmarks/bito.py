@@ -6,30 +6,37 @@ from treeflow_benchmarks.benchmarking import (
     RatioTransformBenchmarkable,
 )
 from treeflow_benchmarks.tree_transform import get_bij
-from treeflow_pipeline.model import get_likelihood
-import treeflow.tree_processing
-import treeflow.tree_transform
-import treeflow.libsbn
-import treeflow
-import libsbn
+from treeflow_benchmarks.treeflow import get_subst_model
+from treeflow.acceleration.bito.beagle import phylogenetic_likelihood
+from treeflow.acceleration.bito.ratio_transform import ratios_to_node_heights
+from treeflow.acceleration.bito.instance import get_instance
 
 
 class BeagleLikelihoodBenchmarkable(LikelihoodBenchmarkable):
     def initialize(self, topology_file, fasta_file, model):
-        starting_values = dict(model.subst_params)
-        for key in list(model.subst_params.keys()):
-            model.subst_params[key] = "fixed"
-        log_prob, self.inst = get_likelihood(
-            topology_file, fasta_file, starting_values, model, dict(rescaling=False)
-        )
-
         def grad(branch_lengths):
             with tf.GradientTape() as t:
                 t.watch(branch_lengths)
                 val = self.log_prob(branch_lengths)
                 return t.gradient(val, branch_lengths)
 
+        subst_model, subst_model_params = get_subst_model(model)
+        log_prob, self.inst = phylogenetic_likelihood(
+            fasta_file,
+            subst_model,
+            newick_file=topology_file,
+            dated=True,
+            **subst_model_params
+        )
+
         self.log_prob = tf.function(log_prob)
+
+        def grad(branch_lengths):
+            with tf.GradientTape() as t:
+                t.watch(branch_lengths)
+                log_prob_val = self.log_prob(branch_lengths)
+            return t.gradient(log_prob_val, branch_lengths)
+
         self.grad = tf.function(grad)
 
         branch_lengths = np.array(self.inst.tree_collection.trees[0].branch_lengths)[
@@ -45,36 +52,17 @@ class BeagleLikelihoodBenchmarkable(LikelihoodBenchmarkable):
         return self.grad(branch_lengths)
 
 
-class LibsbnRatioTransformBenchmarkable(RatioTransformBenchmarkable):
+class BitoRatioTransformBenchmarkable(RatioTransformBenchmarkable):
     def initialize(self, topology_file):
-        self.inst = treeflow.libsbn.get_instance(topology_file)
+        self.inst = get_instance(topology_file, dated=True)
         self.tree = self.inst.tree_collection.trees[0]
         self.node_height_state = np.array(self.tree.node_heights, copy=False)
 
-        def libsbn_forward(ratios):
-            self.tree.initialize_time_tree_using_height_ratios(ratios)
-            return np.array(self.node_height_state[-ratios.shape[-1] :]).astype(
-                ratios.dtype
-            )
+    def forward(self, ratios):
+        raise NotImplemented("Bito ratio transform not yet implemented")
 
-        self.forward_1d = libsbn_forward
-
-        self.forward = np.vectorize(
-            libsbn_forward, [treeflow.DEFAULT_FLOAT_DTYPE_NP], signature="(n)->(n)"
-        )
-
-        def libsbn_gradient(heights, dheights):
-            self.node_height_state[-heights.shape[-1] :] = heights
-            return np.array(
-                libsbn.ratio_gradient_of_height_gradient(self.tree, dheights),
-                dtype=heights.dtype,
-            )
-
-        self.grad_1d = libsbn_gradient
-
-        self.grad = np.vectorize(
-            libsbn_gradient, [treeflow.DEFAULT_FLOAT_DTYPE_NP], signature="(n),(n)->(n)"
-        )
+    def grad(self, heights, dheights):
+        raise NotImplemented("Bito ratio transform not yet implemented")
 
     def calculate_heights(self, ratios):
         return self.forward(ratios.numpy())

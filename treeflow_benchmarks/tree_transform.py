@@ -1,39 +1,34 @@
-import treeflow
-import treeflow.tree_processing
-import treeflow.tree_transform
+import typing as tp
 import tensorflow as tf
 import treeflow_benchmarks.benchmarking
+from treeflow.bijectors.node_height_ratio_bijector import NodeHeightRatioBijector
+from treeflow.tree.io import parse_newick
+from treeflow.tree.rooted.tensorflow_rooted_tree import (
+    convert_tree_to_tensor,
+    TensorflowRootedTree,
+)
+from treeflow.traversal.anchor_heights import get_anchor_heights_tensor
 
 
-def get_bij(topology_file, _class=treeflow.tree_transform.BranchBreaking, **kwargs):
-    tree, taxon_names = treeflow.tree_processing.parse_newick(topology_file)
-    topology = treeflow.tree_processing.update_topology_dict(tree["topology"])
-    taxon_count = (tree["heights"].shape[0] + 1) // 2
-    anchor_heights = treeflow.tree_processing.get_node_anchor_heights(
-        tree["heights"], topology["postorder_node_indices"], topology["child_indices"]
-    )
-    anchor_heights = tf.convert_to_tensor(
-        anchor_heights, dtype=treeflow.DEFAULT_FLOAT_DTYPE_TF
-    )
-    bij = _class(
-        parent_indices=topology["parent_indices"][taxon_count:] - taxon_count,
-        preorder_node_indices=topology["preorder_node_indices"][1:] - taxon_count,
-        anchor_heights=anchor_heights,
-        **kwargs
-    )
-    return bij, taxon_count
+def get_bij(
+    topology_file, _class=NodeHeightRatioBijector, **kwargs
+) -> tp.Tuple[NodeHeightRatioBijector, TensorflowRootedTree]:
+    tree = convert_tree_to_tensor(parse_newick(topology_file))
+    anchor_heights = get_anchor_heights_tensor(tree.topology, tree.sampling_times)
+    bij = _class(topology=tree.topology, anchor_heights=anchor_heights, **kwargs)
+    return bij, tree
 
 
-def get_ratios(topology_file, trees):
-    bij, taxon_count = get_bij(topology_file)
-    return tf.function(bij.inverse)(trees["heights"][..., taxon_count:])
+def get_ratios(topology_file, trees: TensorflowRootedTree):
+    bij, tree = get_bij(topology_file)
+    return tf.function(bij.inverse)(trees.node_heights)
 
 
 class TensorflowRatioTransformBenchmarkable(
     treeflow_benchmarks.benchmarking.RatioTransformBenchmarkable
 ):
     def initialize(self, topology_file):
-        self.bij, self.taxon_count = get_bij(topology_file)
+        self.bij, self.tree = get_bij(topology_file)
         self.forward = tf.function(self.bij.forward)
 
         def grad(ratios, height_gradients):
@@ -44,8 +39,7 @@ class TensorflowRatioTransformBenchmarkable(
 
         self.grad = tf.function(grad)
 
-        tree, _ = treeflow.tree_processing.parse_newick(topology_file)
-        ratios = self.bij.inverse(tree["heights"][self.taxon_count :])
+        ratios = self.bij.inverse(self.tree.node_heights)
         self.forward(ratios)  # Do tracing
         self.grad(ratios, tf.ones_like(ratios))
 

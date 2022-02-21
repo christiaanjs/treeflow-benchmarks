@@ -1,8 +1,9 @@
 from abc import abstractmethod
 from collections import namedtuple
 import tensorflow as tf
-import treeflow.sequences
 from timeit import default_timer as timer
+import numpy as np
+from treeflow.tree.rooted.numpy_rooted_tree import NumpyRootedTree
 
 
 def time_function(func, *args, **kwargs):
@@ -46,18 +47,24 @@ class LikelihoodBenchmarkable:
         pass
 
     @abstractmethod
-    def calculate_likelihoods(self, branch_lengths):
+    def calculate_likelihoods(self, branch_lengths: np.ndarray) -> np.ndarray:
         pass
 
     @abstractmethod
-    def calculate_branch_gradients(self, branch_lengths):
+    def calculate_branch_gradients(self, branch_lengths: np.ndarray) -> np.ndarray:
         pass
 
 
-def benchmark_likelihood(topology_file, fasta_file, model, trees, benchmarkable):
+def benchmark_likelihood(
+    topology_file,
+    fasta_file,
+    model,
+    trees: NumpyRootedTree,
+    benchmarkable: LikelihoodBenchmarkable,
+):
     benchmarkable.initialize(topology_file, fasta_file, model)
 
-    branch_lengths = treeflow.sequences.get_branch_lengths(trees).numpy()
+    branch_lengths = trees.branch_lengths
 
     likelihood_time, likelihood_res = time_function(
         benchmarkable.calculate_likelihoods, branch_lengths
@@ -90,10 +97,12 @@ class RatioTransformBenchmarkable:
         pass
 
 
-def benchmark_ratio_transform(topology_file, ratios, trees, benchmarkable):
+def benchmark_ratio_transform(
+    topology_file, ratios, trees: NumpyRootedTree, benchmarkable
+):
     benchmarkable.initialize(topology_file)
-    taxon_count = ratios.shape[-1] + 1
-    heights = trees["heights"][..., taxon_count:]
+    taxon_count = trees.taxon_count
+    heights = trees.node_heights
 
     forward_time, forward_res = time_function(benchmarkable.calculate_heights, ratios)
     gradient_time, gradient_res = time_function(

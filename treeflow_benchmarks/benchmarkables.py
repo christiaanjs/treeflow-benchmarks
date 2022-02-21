@@ -1,10 +1,10 @@
 from functools import wraps
-from treeflow_benchmarks.tf_likelihood import TensorflowLikelihoodBenchmarkable
+from treeflow_benchmarks.treeflow_old import TreeflowOldLikelihoodBenchmarkable
 from treeflow_benchmarks.tree_transform import TensorflowRatioTransformBenchmarkable
 from treeflow_benchmarks.jax import JaxLikelihoodBenchmarkable
-from treeflow_benchmarks.libsbn import (
+from treeflow_benchmarks.bito import (
     BeagleLikelihoodBenchmarkable,
-    LibsbnRatioTransformBenchmarkable,
+    BitoRatioTransformBenchmarkable,
 )
 from treeflow_benchmarks.benchmarking import (
     benchmark_likelihood,
@@ -15,7 +15,7 @@ from treeflow_benchmarks.benchmarking import (
 )
 
 likelihood_benchmarkables = dict(
-    tensorflow=TensorflowLikelihoodBenchmarkable(custom_gradient=False),
+    treeflow_old=TreeflowOldLikelihoodBenchmarkable(),
     beagle_bito=BeagleLikelihoodBenchmarkable(),
     jax=JaxLikelihoodBenchmarkable(),
     jax_jit=JaxLikelihoodBenchmarkable(jit=True),
@@ -23,7 +23,7 @@ likelihood_benchmarkables = dict(
 
 ratio_transform_benchmarkables = dict(
     tensorflow=TensorflowRatioTransformBenchmarkable(),
-    beagle_bito=LibsbnRatioTransformBenchmarkable(),
+    beagle_bito=BitoRatioTransformBenchmarkable(),
 )
 
 benchmarkables = dict(

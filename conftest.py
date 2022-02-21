@@ -1,7 +1,8 @@
 import pytest
 import pathlib
-import treeflow.sequences
 import pickle
+import numpy as np
+import dendropy
 import treeflow_pipeline.model as mod
 from treeflow_pipeline.util import yaml_input
 
@@ -23,10 +24,16 @@ def fasta_file(test_data_dir):
 
 @pytest.fixture
 def branch_lengths(test_data_dir):
-    with open(test_data_dir / "tree-sim.pickle", "rb") as f:
-        tree = pickle.load(f)
-
-    return treeflow.sequences.get_branch_lengths(tree).numpy()
+    tree_list = dendropy.TreeList.get(
+        path=str(test_data_dir / "height-sim.nexus"), schema="nexus"
+    )
+    branch_lengths = np.array(
+        [
+            [edge.length for edge in tree.postorder_edge_iter()][:-1]
+            for tree in tree_list
+        ]
+    )
+    return branch_lengths
 
 
 @pytest.fixture
