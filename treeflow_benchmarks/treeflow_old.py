@@ -1,4 +1,6 @@
 import tensorflow as tf
+import numpy as np
+import treeflow
 from treeflow.tree.topology.tensorflow_tree_topology import TensorflowTreeTopology
 import treeflow_benchmarks.benchmarking as bench
 from treeflow_benchmarks.treeflow import get_subst_model
@@ -196,8 +198,12 @@ class TreeflowOldLikelihoodBenchmarkable(bench.LikelihoodBenchmarkable):
         self.log_prob(tf.expand_dims(branch_lengths, 0))  # Call to ensure compilation
         self.grad(tf.expand_dims(branch_lengths, 0))
 
-    def calculate_likelihoods(self, branch_lengths):
-        return self.log_prob(branch_lengths)
+    def calculate_likelihoods(self, branch_lengths: np.ndarray) -> np.ndarray:
+        return self.log_prob(
+            tf.convert_to_tensor(branch_lengths, dtype=treeflow.DEFAULT_FLOAT_DTYPE_TF)
+        ).numpy()
 
-    def calculate_branch_gradients(self, branch_lengths):
-        return self.grad(branch_lengths)
+    def calculate_branch_gradients(self, branch_lengths: np.ndarray) -> np.ndarray:
+        return self.grad(
+            tf.convert_to_tensor(branch_lengths, dtype=treeflow.DEFAULT_FLOAT_DTYPE_TF)
+        ).numpy()
