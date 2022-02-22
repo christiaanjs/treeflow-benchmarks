@@ -1,28 +1,35 @@
 ---
 title: "Treeflow benchmarks"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
+classoption: landscape
 ---
 
 ```{r setup, include=FALSE}
 library(treeflowbenchmarksr)
 knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(fig.width=12, fig.height=6) 
+```
+
+```{r load_data}
+plot_data <- snakemake@input[["plot_data"]]
+df <- readr::read_csv(plot_data, show_col_types = FALSE)
 ```
 
 ```{r log_scale_plot}
-comparisonPlot(
-    snakemake@input[["plot_data"]]
-)
+comparisonPlot(df)
 ```
 
 ```{r free_scale_plot}
 comparisonPlot(
-    snakemake@input[["plot_data"]],
+    df,
     logScales=FALSE,
     scales="free_y"
 )
 ```
 
 ```{r fits}
-fitLogLogLine(snakemake@input[["plot_data"]]) %>% 
+fitLogLogLine(df) %>% 
   knitr::kable()
 ```

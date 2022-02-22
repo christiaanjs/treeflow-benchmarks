@@ -1,7 +1,7 @@
 #' @export
-fitLogLogLine <- function(plotData){
-  df <- readr::read_csv(plotData, show_col_types = FALSE)
+fitLogLogLine <- function(df){
   fitParameters <- df %>%
+    dplyr::select(method, computation, seed, taxon_count, time) %>%
     tidyr::nest(data=c(seed, taxon_count, time)) %>%
     dplyr::mutate(
       fit=purrr::map(data, ~ lm(log(time) ~ log(taxon_count), data=.))
