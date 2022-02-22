@@ -7,7 +7,6 @@ treeflowbenchmarksr::comparisonPlot(
 )
 treeflowbenchmarksr::comparisonPlot(
     df,
-    snakemake@input[["plot_data"]],
     logScales=FALSE,
     scales="free_y",
     outFile=snakemake@output[["free_scale_plot"]],

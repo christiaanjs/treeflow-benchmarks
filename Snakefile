@@ -31,7 +31,7 @@ def get_model(model_file):
 
 rule benchmarks:
     input:
-        wd / "rmd-report.html",
+        wd / "rmd-report.pdf",
         wd / "log-scale-plot.png"
 
 
@@ -244,7 +244,7 @@ rule rmd_report:
     input:
         plot_data = rules.plot_data.output.csv
     output:
-        rmd_report = wd / "rmd-report.html"
+        rmd_report = wd / "rmd-report.pdf"
     script:
         "treeflowbenchmarksr/exec/report.Rmd"
 

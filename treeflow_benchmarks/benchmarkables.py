@@ -7,6 +7,7 @@ from treeflow_benchmarks.bito import (
     BeagleLikelihoodBenchmarkable,
     BitoRatioTransformBenchmarkable,
 )
+from treeflow_benchmarks.bito_direct import BeagleDirectLikelihoodBenchmarkable
 from treeflow_benchmarks.benchmarking import (
     benchmark_likelihood,
     benchmark_ratio_transform,
@@ -19,6 +20,7 @@ likelihood_benchmarkables = dict(
     treeflow=TreeflowLikelihoodBenchmarkable(),
     treeflow_old=TreeflowOldLikelihoodBenchmarkable(),
     beagle_bito=BeagleLikelihoodBenchmarkable(),
+    beagle_bito_direct=BeagleDirectLikelihoodBenchmarkable(),
     jax=JaxLikelihoodBenchmarkable(),
     jax_jit=JaxLikelihoodBenchmarkable(jit=True),
 )

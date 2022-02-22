@@ -1,9 +1,11 @@
+import typing as tp
 from abc import abstractmethod
 from collections import namedtuple
 import tensorflow as tf
 from timeit import default_timer as timer
 import numpy as np
 from treeflow.tree.rooted.numpy_rooted_tree import NumpyRootedTree
+from treeflow.tree.rooted.tensorflow_rooted_tree import TensorflowRootedTree
 
 
 def time_function(func, *args, **kwargs):
@@ -59,11 +61,12 @@ def benchmark_likelihood(
     topology_file,
     fasta_file,
     model,
-    trees: NumpyRootedTree,
+    trees: tp.Union[NumpyRootedTree, TensorflowRootedTree],
     benchmarkable: LikelihoodBenchmarkable,
 ):
     benchmarkable.initialize(topology_file, fasta_file, model)
 
+    trees = trees.numpy() if isinstance(trees, TensorflowRootedTree) else trees
     branch_lengths = trees.branch_lengths
 
     likelihood_time, likelihood_res = time_function(
