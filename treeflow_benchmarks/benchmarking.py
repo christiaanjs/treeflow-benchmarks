@@ -56,6 +56,20 @@ class LikelihoodBenchmarkable:
     def calculate_branch_gradients(self, branch_lengths: np.ndarray) -> np.ndarray:
         pass
 
+    def calculate_likelihoods_loop(self, branch_lengths: np.ndarray):
+        batch_size = branch_lengths.shape[0]
+        output = np.zeros(batch_size, dtype=branch_lengths.dtype)
+        for i in range(batch_size):
+            output[i] = self.calculate_likelihoods(branch_lengths[i])
+        return output
+
+    def calculate_branch_gradients_loop(self, branch_lengths: np.ndarray):
+        batch_size = branch_lengths.shape[0]
+        output = np.zeros(branch_lengths.shape, dtype=branch_lengths.dtype)
+        for i in range(batch_size):
+            output[i] = self.calculate_branch_gradients(branch_lengths[i])
+        return output
+
 
 def benchmark_likelihood(
     topology_file,
@@ -70,11 +84,11 @@ def benchmark_likelihood(
     branch_lengths = trees.branch_lengths
 
     likelihood_time, likelihood_res = time_function(
-        benchmarkable.calculate_likelihoods, branch_lengths
+        benchmarkable.calculate_likelihoods_loop, branch_lengths
     )
 
     gradient_time, gradient_res = time_function(
-        benchmarkable.calculate_branch_gradients, branch_lengths
+        benchmarkable.calculate_branch_gradients_loop, branch_lengths
     )
 
     return LikelihoodTimes(likelihood_time, gradient_time)

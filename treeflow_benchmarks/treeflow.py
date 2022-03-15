@@ -60,10 +60,10 @@ class TreeflowLikelihoodBenchmarkable(bench.LikelihoodBenchmarkable):
             )
             return dist.log_prob(sequences_encoded)
 
-        def log_prob(branch_lengths):
-            return tf.map_fn(log_prob_1d, branch_lengths)
+        # def log_prob(branch_lengths):
+        #     return tf.map_fn(log_prob_1d, branch_lengths)
 
-        self.log_prob = tf.function(log_prob)
+        self.log_prob = tf.function(log_prob_1d)
 
         def grad(branch_lengths):
             with tf.GradientTape() as t:
@@ -74,8 +74,10 @@ class TreeflowLikelihoodBenchmarkable(bench.LikelihoodBenchmarkable):
         self.grad = tf.function(grad)
 
         branch_lengths = self.tree.branch_lengths
-        self.log_prob(tf.expand_dims(branch_lengths, 0))  # Call to ensure compilation
-        self.grad(tf.expand_dims(branch_lengths, 0))
+        # self.log_prob(tf.expand_dims(branch_lengths, 0))  # Call to ensure compilation
+        # self.grad(tf.expand_dims(branch_lengths, 0))
+        self.log_prob(branch_lengths)  # Call to ensure compilation
+        self.grad(branch_lengths)
 
     def calculate_likelihoods(self, branch_lengths: np.ndarray) -> np.ndarray:
         return self.log_prob(
