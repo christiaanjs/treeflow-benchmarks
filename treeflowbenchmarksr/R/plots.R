@@ -6,7 +6,7 @@ comparisonPlot <- function(df, logScales=TRUE, scales="fixed", outFile=NULL, ggs
     dplyr::mutate(computation=as.factor(computation))
   plot <- ggplot2::ggplot(plotDf, ggplot2::aes(x=taxon_count, y=time, group=interaction(taxon_count, computation), colour=computation)) +
     ggplot2::geom_boxplot() +
-    ggplot2::facet_grid(~ method, scales=scales) # + ggplot2::theme(legend.position = "bottom")
+    if(scales == "fixed"){ ggplot2::facet_grid(~ method, scales=scales) } else { ggplot2::facet_wrap(~ method, scales=scales) }# + ggplot2::theme(legend.position = "bottom")
   finalPlot <- if(logScales){
     plot + ggplot2::scale_y_log10() + ggplot2::scale_x_continuous(trans="log2") + ggplot2::geom_abline(intercept=0, slope=1)
   } else {
