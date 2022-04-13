@@ -36,6 +36,6 @@ def branch_lengths(test_data_dir):
     return branch_lengths
 
 
-@pytest.fixture
-def model(test_data_dir):
-    return mod.Model(yaml_input(test_data_dir / "model.yaml"))
+@pytest.fixture(params=["model.yaml", "jc_model.yaml"])
+def model(test_data_dir, request):
+    return yaml_input(test_data_dir / request.param)

@@ -2,7 +2,7 @@ from treeflow_benchmarks.jax import JaxLikelihoodBenchmarkable
 import pytest
 
 
-@pytest.mark.parametrize("jit", [False])
+@pytest.mark.parametrize("jit", [False, True])
 def test_jax_likelihood(topology_file, fasta_file, branch_lengths, model, jit):
     benchmarkable = JaxLikelihoodBenchmarkable(jit=jit)
     benchmarkable.initialize(topology_file, fasta_file, model)

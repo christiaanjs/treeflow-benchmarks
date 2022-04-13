@@ -1,26 +1,23 @@
-from lib2to3.pgen2.tokenize import untokenize
+from heapq import merge
+import typing as tp
 import tensorflow as tf
 import treeflow
 import numpy as np
-from treeflow_pipeline.model import cast
 import treeflow_benchmarks.benchmarking as bench
-from treeflow.evolution.substitution.nucleotide.hky import HKY
+from treeflow_benchmarks.params import (
+    split_gradient_params,
+    get_return_value_of_empty_generator,
+    merge_params,
+)
 from treeflow.evolution.seqio import Alignment
 from treeflow.tree.io import parse_newick
 from treeflow.tree.rooted.tensorflow_rooted_tree import convert_tree_to_tensor
-from treeflow.evolution.substitution.probabilities import (
-    get_transition_probabilities_tree_eigen,
+from treeflow.model.phylo_model import (
+    PhyloModel,
+    get_sequence_distribution,
+    get_subst_model,
+    get_clock_model_rates,
 )
-from treeflow.distributions.leaf_ctmc import LeafCTMC
-from treeflow.distributions.sample_weighted import SampleWeighted
-
-subst_model_classes = dict(hky=HKY)
-
-
-def get_subst_model(model):
-    subst_model = subst_model_classes[model.subst_model]()
-    subst_model_params = {key: cast(value) for key, value in model.subst_params.items()}
-    return subst_model, subst_model_params
 
 
 class TreeflowLikelihoodBenchmarkable(bench.LikelihoodBenchmarkable):
@@ -29,62 +26,82 @@ class TreeflowLikelihoodBenchmarkable(bench.LikelihoodBenchmarkable):
     tree = None
     taxon_names = None
 
-    def initialize(self, topology_file, fasta_file, model):
+    def initialize(
+        self, topology_file, fasta_file, model, calculate_clock_rate_gradient
+    ):
         self.tree = convert_tree_to_tensor(parse_newick(topology_file))
-        alignment = Alignment(fasta_file).get_compressed_alignment()
-        weights = alignment.get_weights_tensor()
-        sequences_encoded = alignment.get_encoded_sequence_tensor(self.tree.taxon_set)
-        site_count = alignment.site_count
-
-        subst_model, subst_model_params = get_subst_model(model)
-        subst_model_params = {
-            key: tf.convert_to_tensor(value, dtype=treeflow.DEFAULT_FLOAT_DTYPE_TF)
-            for key, value in subst_model_params.items()
-        }
-        self.eigen = subst_model.eigen(**subst_model_params)
-
-        if model.site_model != "none":
-            raise ValueError(f"Unknown site model: {model.site_model}")
-
         unrooted_tree = self.tree.get_unrooted_tree()
+        alignment = Alignment(fasta_file).get_compressed_alignment()
+        sequences_encoded = alignment.get_encoded_sequence_tensor(self.tree.taxon_set)
 
-        def log_prob_1d(branch_lengths):
+        phylo_model = PhyloModel(model)
+        subst_model = get_subst_model(phylo_model.subst_model)
+        self.gradient_params, self.non_gradient_params = split_gradient_params(
+            phylo_model, calculate_clock_rate_gradient
+        )
+        self.params = merge_params(self.gradient_params, self.non_gradient_params)
+
+        def log_prob(branch_lengths, gradient_params):
             tree = unrooted_tree.with_branch_lengths(branch_lengths)
-            transition_probs_tree = get_transition_probabilities_tree_eigen(
-                tree, self.eigen
+            params = merge_params(gradient_params, self.non_gradient_params)
+            subst_model_params = params["subst_model_params"]
+            site_model_params = params["site_model_params"]
+            clock_model_params = params["clock_model_params"]
+            clock_model_rates = get_return_value_of_empty_generator(
+                get_clock_model_rates(
+                    phylo_model.clock_model, clock_model_params, True, self.tree
+                )
             )
-            dist = SampleWeighted(
-                LeafCTMC(transition_probs_tree, subst_model_params["frequencies"]),
-                weights=weights,
-                sample_shape=(site_count,),
+            sequence_dist = get_sequence_distribution(
+                alignment,
+                tree,
+                subst_model,
+                subst_model_params,
+                phylo_model.site_model,
+                site_model_params,
+                clock_model_rates,
             )
-            return dist.log_prob(sequences_encoded)
+            return sequence_dist.log_prob(sequences_encoded)
 
-        # def log_prob(branch_lengths):
-        #     return tf.map_fn(log_prob_1d, branch_lengths)
+        self.log_prob = tf.function(log_prob)
 
-        self.log_prob = tf.function(log_prob_1d)
-
-        def grad(branch_lengths):
+        def grad(branch_lengths, params):
             with tf.GradientTape() as t:
                 t.watch(branch_lengths)
-                log_prob_val = self.log_prob(branch_lengths)
-            return t.gradient(log_prob_val, branch_lengths)
+                tf.nest.map_structure(t.watch, params)
+                log_prob_val = self.log_prob(branch_lengths, params)
+            return t.gradient(log_prob_val, [branch_lengths, params])
 
         self.grad = tf.function(grad)
 
         branch_lengths = self.tree.branch_lengths
         # self.log_prob(tf.expand_dims(branch_lengths, 0))  # Call to ensure compilation
         # self.grad(tf.expand_dims(branch_lengths, 0))
-        self.log_prob(branch_lengths)  # Call to ensure compilation
-        self.grad(branch_lengths)
 
-    def calculate_likelihoods(self, branch_lengths: np.ndarray) -> np.ndarray:
-        return self.log_prob(
-            tf.convert_to_tensor(branch_lengths, dtype=treeflow.DEFAULT_FLOAT_DTYPE_TF)
-        ).numpy()
+        self.log_prob(
+            branch_lengths, self.gradient_params
+        )  # Call to ensure compilation
+        self.grad(branch_lengths, self.gradient_params)
 
-    def calculate_branch_gradients(self, branch_lengths: np.ndarray) -> np.ndarray:
-        return self.grad(
-            tf.convert_to_tensor(branch_lengths, dtype=treeflow.DEFAULT_FLOAT_DTYPE_TF)
-        ).numpy()
+    def calculate_gradients(
+        self, branch_lengths: np.ndarray, params: np.ndarray
+    ) -> np.ndarray:
+        gradient_params_tensor = tf.nest.map_structure(
+            lambda x, y: tf.constant(x, dtype=y.dtype), params, self.gradient_params
+        )
+        branch_lengths_tensor = tf.constant(
+            branch_lengths, dtype=self.tree.heights.dtype
+        )
+        tensor_grad = self.grad(branch_lengths_tensor, gradient_params_tensor)
+        return tf.nest.map_structure(lambda x: x.numpy(), tensor_grad)
+
+    def calculate_likelihoods(
+        self, branch_lengths: np.ndarray, params: object
+    ) -> np.ndarray:
+        gradient_params_tensor = tf.nest.map_structure(
+            lambda x, y: tf.constant(x, dtype=y.dtype), params, self.gradient_params
+        )
+        branch_lengths_tensor = tf.constant(
+            branch_lengths, dtype=self.tree.heights.dtype
+        )
+        return self.log_prob(branch_lengths_tensor, gradient_params_tensor).numpy()

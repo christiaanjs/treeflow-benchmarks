@@ -6,6 +6,8 @@ from timeit import default_timer as timer
 import numpy as np
 from treeflow.tree.rooted.numpy_rooted_tree import NumpyRootedTree
 from treeflow.tree.rooted.tensorflow_rooted_tree import TensorflowRootedTree
+from treeflow.model.phylo_model import PhyloModel
+from treeflow_benchmarks.params import get_numpy_gradient_params_dict
 
 
 def time_function(func, *args, **kwargs):
@@ -45,29 +47,40 @@ types_with_metadata = {
 
 class LikelihoodBenchmarkable:
     @abstractmethod
-    def initialize(self, topology_file, fasta_file, model):
+    def initialize(
+        self, topology_file, fasta_file, model, calculate_clock_rate_gradient
+    ):
         pass
 
     @abstractmethod
-    def calculate_likelihoods(self, branch_lengths: np.ndarray) -> np.ndarray:
+    def calculate_likelihoods(
+        self, branch_lengths: np.ndarray, params: object
+    ) -> np.ndarray:
         pass
 
     @abstractmethod
-    def calculate_branch_gradients(self, branch_lengths: np.ndarray) -> np.ndarray:
+    def calculate_gradients(
+        self, branch_lengths: np.ndarray, params: object
+    ) -> np.ndarray:
         pass
 
-    def calculate_likelihoods_loop(self, branch_lengths: np.ndarray):
+    def calculate_likelihoods_loop(self, branch_lengths: np.ndarray, params: object):
         batch_size = branch_lengths.shape[0]
         output = np.zeros(batch_size, dtype=branch_lengths.dtype)
         for i in range(batch_size):
-            output[i] = self.calculate_likelihoods(branch_lengths[i])
+            output[i] = self.calculate_likelihoods(branch_lengths[i], params)
         return output
 
-    def calculate_branch_gradients_loop(self, branch_lengths: np.ndarray):
-        batch_size = branch_lengths.shape[0]
-        output = np.zeros(branch_lengths.shape, dtype=branch_lengths.dtype)
+    def calculate_gradients_loop(self, branch_lengths: np.ndarray, params: object):
+        batch_shape = branch_lengths.shape[:-1]
+        batch_size = batch_shape[0]
+        structure = [branch_lengths[0], params]
+        output = tf.nest.map_structure(
+            lambda x: np.zeros(batch_shape + x.shape, x.dtype), structure
+        )
         for i in range(batch_size):
-            output[i] = self.calculate_branch_gradients(branch_lengths[i])
+            gradients = self.calculate_gradients(branch_lengths[i], params)
+            tf.nest.map_structure(lambda out, grad: out.put(i, grad), output, gradients)
         return output
 
 
@@ -78,17 +91,20 @@ def benchmark_likelihood(
     trees: tp.Union[NumpyRootedTree, TensorflowRootedTree],
     benchmarkable: LikelihoodBenchmarkable,
 ):
-    benchmarkable.initialize(topology_file, fasta_file, model)
+    benchmarkable.initialize(
+        topology_file, fasta_file, model, True
+    )  # TODO: Separate models
 
     trees = trees.numpy() if isinstance(trees, TensorflowRootedTree) else trees
     branch_lengths = trees.branch_lengths
+    params = get_numpy_gradient_params_dict(PhyloModel(model))
 
     likelihood_time, likelihood_res = time_function(
-        benchmarkable.calculate_likelihoods_loop, branch_lengths
+        benchmarkable.calculate_likelihoods_loop, branch_lengths, params
     )
 
     gradient_time, gradient_res = time_function(
-        benchmarkable.calculate_branch_gradients_loop, branch_lengths
+        benchmarkable.calculate_gradients_loop, branch_lengths, params
     )
 
     return LikelihoodTimes(likelihood_time, gradient_time)

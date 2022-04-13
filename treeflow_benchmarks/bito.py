@@ -6,44 +6,59 @@ from treeflow_benchmarks.benchmarking import (
     RatioTransformBenchmarkable,
 )
 from treeflow_benchmarks.tree_transform import get_bij
-from treeflow_benchmarks.treeflow import get_subst_model
 from treeflow.acceleration.bito.beagle import phylogenetic_likelihood
 from treeflow.acceleration.bito.ratio_transform import ratios_to_node_heights
 from treeflow.acceleration.bito.instance import get_instance
+from treeflow.model.phylo_model import (
+    PhyloModel,
+    get_subst_model,
+    get_subst_model_params,
+)
+from treeflow_benchmarks.params import get_return_value_of_empty_generator
 
 
 class BeagleLikelihoodBenchmarkable(LikelihoodBenchmarkable):
-    def initialize(self, topology_file, fasta_file, model):
-        def grad(branch_lengths):
-            with tf.GradientTape() as t:
-                t.watch(branch_lengths)
-                val = self.log_prob(branch_lengths)
-                return t.gradient(val, branch_lengths)
+    phylo_model = None
 
-        subst_model, subst_model_params = get_subst_model(model)
+    def initialize(
+        self, topology_file, fasta_file, model, calculate_clock_rate_gradients
+    ):
+
+        phylo_model = PhyloModel(model)
+        self.phylo_model = phylo_model
+        self.calculate_clock_rate_gradients = calculate_clock_rate_gradients
+
+        subst_model = get_subst_model(phylo_model.subst_model)
+        subst_params, _ = get_return_value_of_empty_generator(
+            get_subst_model_params(phylo_model.subst_model, phylo_model.subst_params)
+        )
         log_prob, self.inst = phylogenetic_likelihood(
             fasta_file,
             subst_model,
             newick_file=topology_file,
             dated=True,
-            **subst_model_params
+            site_model=phylo_model.site_model,
+            site_model_params=phylo_model.site_params,
+            **subst_params,
         )
 
-        self.log_prob = tf.function(log_prob)
+        self.log_prob = tf.function(
+            lambda branch_lengths, params: log_prob(branch_lengths)
+        )
 
-        def grad(branch_lengths):
+        def grad(branch_lengths, params):
             with tf.GradientTape() as t:
                 t.watch(branch_lengths)
-                log_prob_val = self.log_prob(branch_lengths)
-            return t.gradient(log_prob_val, branch_lengths)
+                log_prob_val = self.log_prob(branch_lengths, params)
+            return t.gradient(log_prob_val, branch_lengths), None
 
         self.grad = tf.function(grad)
 
         branch_lengths = np.array(self.inst.tree_collection.trees[0].branch_lengths)[
             :-1
         ]
-        self.log_prob(branch_lengths)  # Call to ensure compilation
-        self.grad(branch_lengths)
+        self.log_prob(branch_lengths, None)  # Call to ensure compilation
+        self.grad(branch_lengths, None)
 
     def calculate_likelihoods(self, branch_lengths):
         return self.log_prob(branch_lengths)

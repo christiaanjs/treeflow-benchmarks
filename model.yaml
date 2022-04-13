@@ -6,7 +6,10 @@ clock:
   strict:
     clock_rate:
       0.01
-site: none
+site:
+  discrete_weibull:
+    site_weibull_concentration: 2.0
+    category_count: 4
 substitution:
   hky:
     frequencies: [0.24, 0.26, 0.27, 0.23]
