@@ -40,6 +40,7 @@ class TreeflowLikelihoodBenchmarkable(bench.LikelihoodBenchmarkable):
             phylo_model, calculate_clock_rate_gradient
         )
         self.params = merge_params(self.gradient_params, self.non_gradient_params)
+        pattern_counts = alignment.get_weights_tensor()
 
         def log_prob(branch_lengths, gradient_params):
             tree = unrooted_tree.with_branch_lengths(branch_lengths)
@@ -60,6 +61,7 @@ class TreeflowLikelihoodBenchmarkable(bench.LikelihoodBenchmarkable):
                 phylo_model.site_model,
                 site_model_params,
                 clock_model_rates,
+                pattern_counts=pattern_counts,
             )
             return sequence_dist.log_prob(sequences_encoded)
 
