@@ -1,0 +1,16 @@
+tree:
+  coalescent_constant:
+    pop_size:
+      4.0
+clock:
+  strict:
+    clock_rate:
+      0.01
+site:
+  discrete_weibull:
+    site_weibull_concentration: 2.0
+    category_count: 4
+substitution:
+  gtr:
+    frequencies: [0.24, 0.26, 0.27, 0.23]
+    gtr_rates: [0.12, 0.17, 0.18, 0.11, 0.22, 0.20]

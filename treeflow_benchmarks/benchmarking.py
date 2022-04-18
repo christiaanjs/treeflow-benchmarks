@@ -20,12 +20,12 @@ def time_function(func, *args, **kwargs):
 def get_class_with_metadata(_class):
     return namedtuple(
         f"{_class.__name__}WithMetadata",
-        _class._fields + ("taxon_count", "seed", "method"),
+        _class._fields + ("taxon_count", "seed", "method", "model"),
     )
 
 
 LikelihoodTimes = namedtuple(
-    "LikelihoodTimes", ["likelihood_time", "branch_gradient_time"]
+    "LikelihoodTimes", ["likelihood_time", "phylo_gradients_time"]
 )
 LikelihoodTimesWithMetadata = get_class_with_metadata(LikelihoodTimes)
 RatioTransformTimes = namedtuple(
@@ -90,14 +90,17 @@ def benchmark_likelihood(
     model,
     trees: tp.Union[NumpyRootedTree, TensorflowRootedTree],
     benchmarkable: LikelihoodBenchmarkable,
+    calculate_clock_rate_gradient: bool = False,
 ):
     benchmarkable.initialize(
-        topology_file, fasta_file, model, True
+        topology_file, fasta_file, model, calculate_clock_rate_gradient
     )  # TODO: Separate models
 
     trees = trees.numpy() if isinstance(trees, TensorflowRootedTree) else trees
     branch_lengths = trees.branch_lengths
-    params = get_numpy_gradient_params_dict(PhyloModel(model))
+    params = get_numpy_gradient_params_dict(
+        PhyloModel(model), calculate_clock_rate_gradient=calculate_clock_rate_gradient
+    )
 
     likelihood_time, likelihood_res = time_function(
         benchmarkable.calculate_likelihoods_loop, branch_lengths, params
@@ -110,9 +113,13 @@ def benchmark_likelihood(
     return LikelihoodTimes(likelihood_time, gradient_time)
 
 
-def annotate_times(times, taxon_count, seed, method):
+def annotate_times(times, taxon_count, seed, method, model):
     return types_with_metadata[type(times)](
-        taxon_count=taxon_count, seed=seed, method=method, **times._asdict()
+        taxon_count=taxon_count,
+        seed=seed,
+        method=method,
+        model=model,
+        **times._asdict(),
     )
 
 

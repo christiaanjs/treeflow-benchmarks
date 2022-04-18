@@ -3,7 +3,7 @@ import pathlib
 from treeflow_pipeline.util import text_input, text_output, yaml_input, yaml_output, pickle_input, pickle_output
 import treeflow_pipeline.simulation as pipe_sim
 import treeflow_pipeline.templating as tem
-import treeflow_pipeline.model as mod
+from treeflow.model.phylo_model import PhyloModel
 import treeflow_benchmarks.simulation as bench_sim
 import treeflow_pipeline.topology_inference as top
 import treeflow_benchmarks.benchmarking as bench
@@ -19,6 +19,7 @@ wd = pathlib.Path(config["working_directory"])
 taxon_dir = "{taxon_count}-taxa"
 seed_dir = "{seed}-seed"
 task_dir = "{task}-task"
+model_dir = "{model}-model"
 benchmarkable_wildcard = "{benchmarkable}"
 
 seeds = [str(i+1) for i in range(config["replicates"])]
@@ -27,7 +28,15 @@ all_computations = [time_field for task in config["tasks"] for time_field in out
 assert len(all_computations) == len(set(all_computations)), "Time field names must be unique"
 
 def get_model(model_file):
-    return mod.Model(yaml_input(model_file))
+    return PhyloModel(yaml_input(model_file))
+
+model_files_and_clock_rate_grad = dict(
+    jc=("jc-model.yaml", False),
+    full=("full-model.yaml", True)
+)
+model_files = { key: value[0] for key, value in model_files_and_clock_rate_grad.items() }
+calculate_clock_rate_grad = { key: value[1] for key, value in model_files_and_clock_rate_grad.items() }
+sim_model = "sim-model.yaml"
 
 rule benchmarks:
     input:
@@ -37,11 +46,11 @@ rule benchmarks:
 
 rule model_params:
     input:
-        model = config["model_file"]
+        model = sim_model
     output:
         params = wd / "params.yaml"
     run:
-        yaml_output(get_model(input.model).free_params(), output.params)
+        yaml_output(get_model(input.model).all_params(), output.params)
 
 
 rule sampling_times:
@@ -106,7 +115,7 @@ rule height_sim:
 
 rule sequence_sim_xml:
     input:
-        model = config["model_file"],
+        model = sim_model,
         topology = rules.topology_sim_newick.output.newick,
         params = rules.model_params.output.params,
         sampling_times = rules.sampling_times.output.times,
@@ -160,7 +169,6 @@ rule sim_state:
         trees = rules.height_sim.output.pickle,
         fasta_file = rules.fasta_sim.output.fasta,
         ratios = rules.ratios.output.ratios,
-        model = config["model_file"],
     output:
         sim_state = sibling_file(rules.height_sim.output.pickle, "sim-state.pickle")
     run:
@@ -169,24 +177,26 @@ rule sim_state:
             trees=pickle_input(input.trees),
             fasta_file=input.fasta_file,
             ratios=pickle_input(input.ratios),
-            model=get_model(input.model)
         ), output.sim_state)
 
 rule times:
     input:
         sim_state = rules.sim_state.output.sim_state
-    output:
-        times = wd / taxon_dir / seed_dir / task_dir / (benchmarkable_wildcard + "-times.csv")
+    output: # TODO: Change to pickle
+        times = wd / taxon_dir / seed_dir / model_dir / task_dir / (benchmarkable_wildcard + "-times.csv")
     run:
         pickle_output(
             bench.annotate_times(
                 benchmark_functions[wildcards.task](
                     benchmarkable=benchables[wildcards.task][wildcards.benchmarkable],
+                    model=yaml_input(model_files[wildcards.model]),
+                    calculate_clock_rate_gradient=calculate_clock_rate_grad[wildcards.model],
                     **pickle_input(input.sim_state)
                 ),
                 taxon_count=wildcards.taxon_count,
                 seed=wildcards.seed,
-                method=wildcards.benchmarkable
+                method=wildcards.benchmarkable,
+                model=wildcards.model
             ),
             output.times
         )
@@ -198,6 +208,7 @@ rule task_times_csv:
             taxon_count=config["taxon_counts"],
             seed=seeds,
             benchmarkable=config["benchmarkables"],
+            model=list(model_files.keys()),
             allow_missing=True
         )
     output:
@@ -224,7 +235,7 @@ rule plot_data:
     run:
         (pd.read_csv(input.times_csv)
             .melt(
-                id_vars=["method", "seed", "taxon_count"],
+                id_vars=["method", "seed", "taxon_count", "model"],
                 var_name="computation",
                 value_name="time"
             )

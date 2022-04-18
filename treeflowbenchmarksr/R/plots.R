@@ -3,8 +3,8 @@
 #' @export
 comparisonPlot <- function(df, logScales=TRUE, scales="fixed", outFile=NULL, ggsaveArgs=list()){
   plotDf <- df %>%
-    dplyr::mutate(computation=as.factor(computation))
-  plot <- ggplot2::ggplot(plotDf, ggplot2::aes(x=taxon_count, y=time, group=interaction(taxon_count, computation), colour=computation)) +
+    dplyr::mutate(computation=as.factor(computation), model=as.factor(model))
+  plot <- ggplot2::ggplot(plotDf, ggplot2::aes(x=taxon_count, y=time, group=interaction(taxon_count, computation, model), colour=interaction(computation, model))) +
     ggplot2::geom_boxplot() +
     if(scales == "fixed"){ ggplot2::facet_grid(~ method, scales=scales) } else { ggplot2::facet_wrap(~ method, scales=scales) }# + ggplot2::theme(legend.position = "bottom")
   finalPlot <- if(logScales){

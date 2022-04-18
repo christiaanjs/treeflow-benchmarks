@@ -1,0 +1,12 @@
+tree:
+  coalescent_constant:
+    pop_size:
+      4.0
+clock:
+  strict:
+    clock_rate:
+      0.01
+site:
+  none
+substitution:
+  jc
