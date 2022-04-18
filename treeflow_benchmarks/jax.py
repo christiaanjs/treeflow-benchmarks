@@ -35,7 +35,8 @@ class JaxLikelihoodBenchmarkable(bench.LikelihoodBenchmarkable):
         encoded_sequences = compressed_alignment.get_encoded_sequence_array(
             tree.taxon_set
         )
-
+        encoded_sequences_node_first = np.moveaxis(encoded_sequences, 1, 0)
+        pattern_counts = compressed_alignment.get_weights_array()
         DEFAULT_WEIGHTS = np.array([1.0])
         DEFAULT_RATES = np.array([1.0])
         topology_dict = dict(
@@ -49,14 +50,16 @@ class JaxLikelihoodBenchmarkable(bench.LikelihoodBenchmarkable):
                     category_weights,
                     category_rates,
                 ) = phylojax.site_rate_variation.get_discrete_gamma_weights_rates(
-                    **params["site_model_params"]
+                    **params["site_model_params"],
+                    category_count=phylo_model.site_params["category_count"],
                 )
             elif phylo_model.site_model == "discrete_weibull":
                 (
                     category_weights,
                     category_rates,
                 ) = phylojax.site_rate_variation.get_discrete_weibull_weights_rates(
-                    **params["site_model_params"]
+                    **params["site_model_params"],
+                    category_count=phylo_model.site_params["category_count"],
                 )
             elif phylo_model.site_model == "none":
                 category_weights = DEFAULT_WEIGHTS
@@ -77,9 +80,9 @@ class JaxLikelihoodBenchmarkable(bench.LikelihoodBenchmarkable):
                 raise ValueError(f"Unknown clock model: {phylo_model.clock_model}")
             likelihood = phylojax.likelihood.JaxLikelihood(
                 topology_dict,
-                encoded_sequences,
+                encoded_sequences_node_first,
                 subst_model,
-                compressed_alignment.get_weights_array(),
+                pattern_counts,
                 category_weights,
                 category_rates,
             )

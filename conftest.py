@@ -1,10 +1,19 @@
 import pytest
 import pathlib
-import pickle
 import numpy as np
 import dendropy
-import treeflow_pipeline.model as mod
 from treeflow_pipeline.util import yaml_input
+import os
+
+if os.getenv("_PYTEST_RAISE", "0") != "0":
+    # Stop pytest catching exceptions in debug run configuration
+    @pytest.hookimpl(tryfirst=True)
+    def pytest_exception_interact(call):
+        raise call.excinfo.value
+
+    @pytest.hookimpl(tryfirst=True)
+    def pytest_internalerror(excinfo):
+        raise excinfo.value
 
 
 @pytest.fixture
