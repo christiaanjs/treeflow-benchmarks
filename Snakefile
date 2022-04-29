@@ -184,32 +184,65 @@ rule times:
         sim_state = rules.sim_state.output.sim_state
     output: # TODO: Change to pickle
         times = wd / taxon_dir / seed_dir / model_dir / task_dir / (benchmarkable_wildcard + "-times.csv")
-    run:
-        pickle_output(
-            bench.annotate_times(
-                benchmark_functions[wildcards.task](
-                    benchmarkable=benchables[wildcards.task][wildcards.benchmarkable],
-                    model=yaml_input(model_files[wildcards.model]),
-                    calculate_clock_rate_gradient=calculate_clock_rate_grad[wildcards.model],
-                    **pickle_input(input.sim_state)
-                ),
-                taxon_count=wildcards.taxon_count,
-                seed=wildcards.seed,
-                method=wildcards.benchmarkable,
-                model=wildcards.model
-            ),
-            output.times
-        )
+    params:
+        model_file = lambda wildcards: model_files[wildcards.model],
+        clock_rate_flag = lambda wildcards: "--calculate-clock-rate-gradient" if calculate_clock_rate_grad[wildcards.model] else ""
+    shell:
+        """
+        treeflow_paper_benchmark \
+            --task {wildcards.task} \
+            --benchmarkable {wildcards.benchmarkable} \
+            --model-file {params.model_file} \
+            --output-file {output.times} \
+            {params.clock_rate_flag} \
+            --sim-state {input.sim_state} \
+            --taxon-count {wildcards.taxon_count} \
+            --seed {wildcards.seed} \
+            --model-name {wildcards.model} || \
+        treeflow_paper_benchmark_error \
+            --task {wildcards.task} \
+            --benchmarkable {wildcards.benchmarkable} \
+            --output-file {output.times} \
+            --taxon-count {wildcards.taxon_count} \
+            --seed {wildcards.seed} \
+            --model-name {wildcards.model}
+        """
+
+        # pickle_output(
+        #     bench.annotate_times(
+        #         benchmark_functions[wildcards.task](
+        #             benchmarkable=benchables[wildcards.task][wildcards.benchmarkable],
+        #             model=yaml_input(model_files[wildcards.model]),
+        #             calculate_clock_rate_gradient=calculate_clock_rate_grad[wildcards.model],
+        #             **pickle_input(input.sim_state)
+        #         ),
+        #         taxon_count=wildcards.taxon_count,
+        #         seed=wildcards.seed,
+        #         method=wildcards.benchmarkable,
+        #         model=wildcards.model
+        #     ),
+        #     output.times
+        # )
 
 rule task_times_csv:
     input:
-        times = expand(
-            rules.times.output.times,
-            taxon_count=config["taxon_counts"],
-            seed=seeds,
-            benchmarkable=config["benchmarkables"],
-            model=list(model_files.keys()),
-            allow_missing=True
+        times = (
+            list(expand(
+                rules.times.output.times,
+                taxon_count=config["full_taxon_counts"],
+                seed=seeds,
+                benchmarkable=config["full_benchmarkables"],
+                model=list(model_files.keys()),
+                allow_missing=True
+            )) +
+            list(expand(
+                rules.times.output.times,
+                taxon_count=config["short_taxon_counts"],
+                seed=seeds,
+                benchmarkable=config["short_benchmarkables"],
+                model=list(model_files.keys()),
+                allow_missing=True
+            ))
         )
     output:
         csv = wd /  (task_dir + "-times.csv")

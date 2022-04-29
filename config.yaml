@@ -1,9 +1,11 @@
-taxon_counts: [32, 64]#, 128]#, 256, 512, 1024, 2048]
-replicates: 2
+short_taxon_counts: [32, 64, 128, 256, 512]
+full_taxon_counts: [32, 64, 128, 256, 512, 1024, 2048]
+replicates: 10
 working_directory: "out"
 sampling_window: 2.0
 sample_count: 100
 height_scale: 0.1
 sequence_length: 1000
 tasks: ["likelihood"]
-benchmarkables: ["treeflow", "beagle_bito_direct", "jax"]
+short_benchmarkables: ["jax"]
+full_benchmarkables: ["treeflow", "beagle_bito_direct"]

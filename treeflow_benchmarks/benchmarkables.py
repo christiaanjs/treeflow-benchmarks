@@ -61,3 +61,7 @@ benchmark_functions = dict(
         benchmark_ratio_transform, "topology_file", "ratios", "trees", "benchmarkable"
     ),
 )
+
+benchmark_function_output_types = dict(
+    likelihood=LikelihoodTimes, ratio_transform=RatioTransformTimes
+)

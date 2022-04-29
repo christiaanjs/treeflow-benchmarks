@@ -17,9 +17,13 @@ plot_data <- snakemake@input[["plot_data"]]
 df <- readr::read_csv(plot_data, show_col_types = FALSE)
 ```
 
+### Shared log scale plots
+
 ```{r log_scale_plot}
 comparisonPlot(df)
 ```
+
+### Free scale plots
 
 ```{r free_scale_plot}
 comparisonPlot(
@@ -29,7 +33,17 @@ comparisonPlot(
 )
 ```
 
+### Log-log linear fits
+
 ```{r fits}
 fitLogLogLine(df) %>% 
   knitr::kable()
+```
+### Errors
+
+```{r errors}
+df %>% 
+  dplyr::filter(is.na(time)) %>% 
+  dplyr::select(-time) %>%
+  knitr::kable() 
 ```
