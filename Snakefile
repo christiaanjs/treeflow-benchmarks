@@ -41,7 +41,8 @@ sim_model = "sim-model.yaml"
 rule benchmarks:
     input:
         wd / "rmd-report.pdf",
-        wd / "log-scale-plot.png"
+        wd / "log-scale-plot.png",
+        wd / "fit-table.csv"
 
 
 rule model_params:
@@ -208,22 +209,6 @@ rule times:
             --model-name {wildcards.model}
         """
 
-        # pickle_output(
-        #     bench.annotate_times(
-        #         benchmark_functions[wildcards.task](
-        #             benchmarkable=benchables[wildcards.task][wildcards.benchmarkable],
-        #             model=yaml_input(model_files[wildcards.model]),
-        #             calculate_clock_rate_gradient=calculate_clock_rate_grad[wildcards.model],
-        #             **pickle_input(input.sim_state)
-        #         ),
-        #         taxon_count=wildcards.taxon_count,
-        #         seed=wildcards.seed,
-        #         method=wildcards.benchmarkable,
-        #         model=wildcards.model
-        #     ),
-        #     output.times
-        # )
-
 rule task_times_csv:
     input:
         times = (
@@ -283,6 +268,14 @@ rule plots:
         free_scale_plot = wd / "free-scale-plot.png"
     script:
         "treeflowbenchmarksr/exec/snakemake-plots.R"
+
+rule fit_table:
+    input:
+        plot_data = rules.plot_data.output.csv
+    output:
+        fit_table = wd / "fit-table.csv"
+    script:
+        "treeflowbenchmarksr/exec/snakemake-fits.R"
 
 rule rmd_report:
     input:
