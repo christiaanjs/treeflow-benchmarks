@@ -11,6 +11,7 @@ from treeflow_benchmarks.benchmarkables import benchmarkables as benchables, ben
 import treeflow_benchmarks.tree_transform as bench_trans
 import pandas as pd
 from functools import reduce
+from treeflow_pipeline.data import extract_xml_sequences
 
 config_file = "config.yaml"
 configfile: config_file
@@ -40,7 +41,7 @@ sim_model = "sim-model.yaml"
 
 rule benchmarks:
     input:
-        wd / "rmd-report.pdf",
+        #wd / "rmd-report.pdf",
         wd / "log-scale-plot.png",
         wd / "fit-table.csv"
 
@@ -153,7 +154,7 @@ rule fasta_sim:
     output:
         fasta = sibling_file(rules.sequence_sim.output.sequences, "sequences.fasta")
     run:
-        pipe_sim.convert_simulated_sequences(input.xml, output.fasta, 'fasta')
+        extract_xml_sequences(input.xml, output.fasta, 'fasta')
 
 rule ratios:
     input:
