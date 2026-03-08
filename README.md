@@ -5,7 +5,7 @@ Benchmarking pipeline for phylogenetic likelihood computation, comparing [TreeFl
 ## What it does
 
 1. **Simulates** coalescent tree topologies and DNA sequences using BEAST 2
-2. **Benchmarks** likelihood and gradient computation across methods, taxon counts (32–2048), and models (JC, full GTR+Gamma)
+2. **Benchmarks** likelihood and gradient computation across methods, taxon counts (32–2048), and models (JC, full GTR+Weibull)
 3. **Aggregates** timing results across 10 replicate simulations per configuration
 4. **Generates** log-scale comparison plots and fits log-log scaling exponents
 
