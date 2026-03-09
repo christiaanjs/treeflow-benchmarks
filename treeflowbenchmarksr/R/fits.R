@@ -1,8 +1,10 @@
 #' @export
 fitLogLogLine <- function(df){
   fitParameters <- df %>%
+    dplyr::filter(!is.na(time)) %>%
     dplyr::select(method, computation, model, seed, taxon_count, time) %>%
     tidyr::nest(data=c(seed, taxon_count, time)) %>%
+    dplyr::filter(purrr::map_lgl(data, ~ nrow(.) > 0)) %>%
     dplyr::mutate(
       fit=purrr::map(data, ~ lm(log(time) ~ log(taxon_count), data=.))
     ) %>%
