@@ -1,4 +1,5 @@
 from logging import log
+import jax
 import treeflow_benchmarks.benchmarking as bench
 from treeflow.tree.io import parse_newick
 from treeflow.evolution.seqio import Alignment
@@ -6,7 +7,6 @@ import phylojax.likelihood
 import phylojax.substitution
 import phylojax.site_rate_variation
 import jax.numpy as np
-import jax
 from treeflow.model.phylo_model import PhyloModel
 from treeflow_benchmarks.params import get_numpy_gradient_params_dict
 
