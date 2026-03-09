@@ -37,6 +37,7 @@ class BeagleLikelihoodBenchmarkable(LikelihoodBenchmarkable):
             subst_model,
             newick_file=topology_file,
             dated=True,
+            clock_rate=phylo_model.clock_params["clock_rate"],
             site_model=phylo_model.site_model,
             site_model_params=phylo_model.site_params,
             **subst_params,
@@ -56,7 +57,7 @@ class BeagleLikelihoodBenchmarkable(LikelihoodBenchmarkable):
 
         branch_lengths = np.array(self.inst.tree_collection.trees[0].branch_lengths)[
             :-1
-        ]
+        ].copy()
         self.log_prob(branch_lengths, None)  # Call to ensure compilation
         self.grad(branch_lengths, None)
 
